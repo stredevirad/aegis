@@ -1,0 +1,42 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
+secret/
+credentials/
+*.pem
+
+# Database/local runtime
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/build/
+
+# IDE/system
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# External Fixtures
+external/
