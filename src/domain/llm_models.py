@@ -21,6 +21,8 @@ class LLMMessage(BaseModel):
     role: MessageRole
     content: str
     tool_call_id: str | None = None
+    tool_name: str | None = None
+    tool_calls: list['ToolCall'] = Field(default_factory=list)
 
 
 # --- Tool Definitions & Calls ---
@@ -32,6 +34,7 @@ class ToolDefinition(BaseModel):
     name: str
     description: str
     parameters: dict[str, Any] = Field(default_factory=dict)
+    required: list[str] = Field(default_factory=list)
 
 
 class ToolCall(BaseModel):
