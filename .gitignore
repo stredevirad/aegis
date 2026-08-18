@@ -40,3 +40,8 @@ frontend/build/
 
 # External Fixtures
 external/
+
+# Databases
+*.db
+aegis_demo.db
+aegis.db

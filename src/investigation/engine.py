@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from datetime import datetime, timezone
 
@@ -26,9 +27,9 @@ class InvestigationEngine:
         llm_provider: LLMProvider,
         tool_dispatcher: ToolDispatcher,
         repository: SQLiteRepository,
-        max_turns: int = 6,
-        max_tool_calls: int = 12,
-        max_duration_seconds: int = 180,
+        max_turns: int = int(os.environ.get("MAXIMUM_LLM_TURNS", "7")),
+        max_tool_calls: int = int(os.environ.get("MAXIMUM_TOOL_CALLS", "12")),
+        max_duration_seconds: int = int(os.environ.get("MAXIMUM_INVESTIGATION_DURATION_SECONDS", "210")),
     ):
         self.incident = incident
         self.llm_provider = llm_provider
@@ -119,6 +120,29 @@ class InvestigationEngine:
                 f"Exceeded MAXIMUM_INVESTIGATION_DURATION ({self.max_duration_seconds}s)"
             )
 
+    def _parse_recommendation_and_record(self, content: str) -> None:
+        rec_str = next(line for line in content.split("\n") if "RECOMMENDATION:" in line)
+        parts = [p.strip() for p in rec_str.split("|")]
+        action = parts[0].replace("RECOMMENDATION:", "").strip()
+        reason = "Unknown"
+        impact = "Unknown"
+        risk = "Unknown"
+        
+        for p in parts[1:]:
+            if p.startswith("REASON:"): reason = p.replace("REASON:", "").strip()
+            elif p.startswith("IMPACT:"): impact = p.replace("IMPACT:", "").strip()
+            elif p.startswith("RISK:"): risk = p.replace("RISK:", "").strip()
+        
+        rec = RemediationRecommendation(
+            action=action,
+            reason=reason,
+            expected_impact=impact,
+            risk_uncertainty=risk,
+        )
+        self.repository.save_recommendation(self.incident.id, rec)
+        self._record_event("RECOMMENDATION_PRODUCED", f"Action: {action}")
+        self._transition_to(InvestigationStatus.RECORDED)
+
     def _step(self) -> None:
         self.turn_count += 1
         
@@ -197,7 +221,7 @@ class InvestigationEngine:
                 self.messages.append(
                     LLMMessage(
                         role=MessageRole.USER,
-                        content="Verification is complete. Stop using tools. Provide your final diagnosis using the format 'DIAGNOSIS: <conclusion>'",
+                        content="Verification is complete. Stop using tools. Provide your final diagnosis using the format 'DIAGNOSIS: <conclusion>' and a remediation recommendation using the format 'RECOMMENDATION: <action> | REASON: <reason> | IMPACT: <impact> | RISK: <risk>'",
                     )
                 )
 
@@ -235,7 +259,7 @@ class InvestigationEngine:
                 self.messages.append(
                     LLMMessage(
                         role=MessageRole.USER,
-                        content="Now use tools to gather more evidence to verify or refute these hypotheses. Once verified, output 'DIAGNOSIS: <conclusion>'",
+                        content="Now use tools to gather more evidence to verify or refute these hypotheses. Once verified, output 'DIAGNOSIS: <conclusion>' and a remediation recommendation using the format 'RECOMMENDATION: <action> | REASON: <reason> | IMPACT: <impact> | RISK: <risk>'",
                     )
                 )
             else:
@@ -250,42 +274,24 @@ class InvestigationEngine:
                 self._transition_to(InvestigationStatus.CONCLUDING)
                 self._record_event("DIAGNOSIS_PRODUCED", diagnosis)
                 
-                self._transition_to(InvestigationStatus.RECOMMENDATION)
-                self.messages.append(
-                    LLMMessage(
-                        role=MessageRole.USER,
-                        content="Please output a remediation recommendation using the format 'RECOMMENDATION: <action> | REASON: <reason> | IMPACT: <impact> | RISK: <risk>'",
+                if "RECOMMENDATION:" in content:
+                    self._transition_to(InvestigationStatus.RECOMMENDATION)
+                    self._parse_recommendation_and_record(content)
+                else:
+                    self._transition_to(InvestigationStatus.RECOMMENDATION)
+                    self.messages.append(
+                        LLMMessage(
+                            role=MessageRole.USER,
+                            content="Please output a remediation recommendation using the format 'RECOMMENDATION: <action> | REASON: <reason> | IMPACT: <impact> | RISK: <risk>'",
+                        )
                     )
-                )
             else:
                 self.messages.append(LLMMessage(role=MessageRole.USER, content="Please use tools to verify or output 'DIAGNOSIS: <conclusion>'."))
             return
 
         elif self.incident.status == InvestigationStatus.RECOMMENDATION:
             if "RECOMMENDATION:" in content:
-                # Basic parsing
-                rec_str = next(line for line in content.split("\n") if "RECOMMENDATION:" in line)
-                parts = [p.strip() for p in rec_str.split("|")]
-                action = parts[0].replace("RECOMMENDATION:", "").strip()
-                reason = "Unknown"
-                impact = "Unknown"
-                risk = "Unknown"
-                
-                for p in parts[1:]:
-                    if p.startswith("REASON:"): reason = p.replace("REASON:", "").strip()
-                    elif p.startswith("IMPACT:"): impact = p.replace("IMPACT:", "").strip()
-                    elif p.startswith("RISK:"): risk = p.replace("RISK:", "").strip()
-                
-                rec = RemediationRecommendation(
-                    action=action,
-                    reason=reason,
-                    expected_impact=impact,
-                    risk_uncertainty=risk,
-                )
-                self.repository.save_recommendation(self.incident.id, rec)
-                self._record_event("RECOMMENDATION_PRODUCED", f"Action: {action}")
-                
-                self._transition_to(InvestigationStatus.RECORDED)
+                self._parse_recommendation_and_record(content)
             else:
                 self.messages.append(LLMMessage(role=MessageRole.USER, content="Please provide a recommendation in the format 'RECOMMENDATION: <action> | REASON: <reason>'."))
             return

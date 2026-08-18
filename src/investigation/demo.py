@@ -53,12 +53,12 @@ def run_demo(use_mock_llm: bool = False) -> None:
 
         llm_provider = MockLLMProvider()
     else:
-        print("[4] Initializing Ollama Provider (qwen3.5:9b)...")
         llm_provider = OllamaProvider()
+        print(f"[4] Initializing Ollama Provider ({llm_provider.model})...")
         status = llm_provider.get_status()
         if status.health.value != "HEALTHY":
-            print(f"ERROR: Ollama is not healthy or qwen3.5:9b is missing: {status.limitations}")
-            print("Please run Ollama locally with qwen3.5:9b or run with --mock-llm")
+            print(f"ERROR: Ollama is not healthy or model {llm_provider.model} is missing: {status.limitations}")
+            print(f"Please run Ollama locally with {llm_provider.model} or run with --mock-llm")
             sys.exit(1)
 
     # 6. Run Investigation

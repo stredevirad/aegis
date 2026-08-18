@@ -24,7 +24,9 @@ class OllamaProvider(LLMProvider):
         think: bool | None = None
     ):
         self.base_url = (base_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
-        self.model = model or os.environ.get("OLLAMA_MODEL", "qwen3.5:9b")
+        profile = os.environ.get("AEGIS_MODEL_PROFILE", "development")
+        default_model = "qwen3.5:4b" if profile == "development" else "qwen3.5:9b"
+        self.model = model or os.environ.get("OLLAMA_MODEL", default_model)
         self.default_think = think if think is not None else os.environ.get("OLLAMA_THINK", "false").lower() == "true"
 
     def get_status(self) -> ProviderStatus:
