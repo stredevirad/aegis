@@ -93,6 +93,7 @@ class Incident(BaseModel):
     hypotheses: list[Hypothesis] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     environment_profile: str | None = None
+    affected_service: str | None = None
     available_capabilities: list[str] = Field(default_factory=list)
     scenario_id: str | None = None
     ground_truth_reference: str | None = None

@@ -225,4 +225,19 @@ class SQLiteRepository:
                     contradicting_evidence_ids=json.loads(h_row["contradicting_evidence_ids"])
                 ))
                 
+            # Load evidence
+            cursor = conn.execute("SELECT * FROM evidence WHERE incident_id = ?", (incident_id,))
+            from src.domain.models import Evidence, EvidenceType
+            for e_row in cursor.fetchall():
+                incident.evidence.append(Evidence(
+                    id=e_row["id"],
+                    type=EvidenceType(e_row["type"]),
+                    source_provider=e_row["source_provider"],
+                    service_resource=e_row["service_resource"],
+                    summary=e_row["summary"],
+                    data=json.loads(e_row["data"]),
+                    observed_at=datetime.fromisoformat(e_row["observed_at"]),
+                    collected_at=datetime.fromisoformat(e_row["collected_at"])
+                ))
+                
             return incident

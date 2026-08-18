@@ -33,12 +33,13 @@ def run_demo(use_mock_llm: bool = False) -> None:
     print("[5] Generating Fake Incident Scenario...")
     incident_start = datetime.now(timezone.utc)
     incident = Incident(
-        id=f"inc_demo_{int(datetime.now().timestamp())}",
+        id=f"inc_demo_{int(datetime.now(timezone.utc).timestamp())}",
         title="Payment API Latency Spike",
         description="Users are reporting slow payments. Checkout is delayed.",
         start_time=incident_start,
         status=InvestigationStatus.INCIDENT_CREATED,
-        scenario_id="scenario_payment_api_001"
+        scenario_id="scenario_payment_api_001",
+        affected_service="payment-api"
     )
 
     # 3. Create Tool Dispatcher

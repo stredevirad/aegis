@@ -49,7 +49,29 @@ def engine():
         pass
 
 
-def test_engine_state_transitions(engine: InvestigationEngine) -> None:
+def test_engine_state_transitions_fast(engine: InvestigationEngine) -> None:
+    engine.incident.affected_service = "orders-service"
+    engine.investigation_mode = "fast"
+    engine.run()
+    if engine.incident.status == InvestigationStatus.FAILED:
+        print(f"\nFAILED REASON: {engine.messages[-1].content}")
+    assert engine.incident.status == InvestigationStatus.RECORDED
+    assert engine.turn_count == 2
+    # 2 for initial collection, + however many MockLLM generates (MockLLM doesn't generate tools in fast mode currently, wait we need to update MockLLM for that!)
+    assert engine.incident.end_time is not None
+    assert len(engine.incident.hypotheses) == 2
+    assert engine.incident.hypotheses[0].description == "Downstream DB latency caused payment-api to fail."
+    
+    # Evidence checks
+    assert len(engine.incident.evidence) >= 2 # 2 initial + verification
+    
+    # SQLite check
+    loaded = engine.repository.load_incident(engine.incident.id)
+    assert loaded is not None
+    assert len(loaded.evidence) == len(engine.incident.evidence)
+
+def test_engine_state_transitions_iterative(engine: InvestigationEngine) -> None:
+    engine.investigation_mode = "iterative"
     engine.run()
     if engine.incident.status == InvestigationStatus.FAILED:
         print(f"\nFAILED REASON: {engine.messages[-1].content}")
@@ -60,9 +82,9 @@ def test_engine_state_transitions(engine: InvestigationEngine) -> None:
     assert len(engine.incident.hypotheses) == 2
     assert engine.incident.hypotheses[0].description == "Downstream DB latency caused payment-api to fail."
 
-
 def test_engine_run_budgets(engine: InvestigationEngine) -> None:
     # Set budgets too low so it fails
+    engine.investigation_mode = "iterative"
     engine.max_turns = 2
     engine.run()
     
@@ -83,6 +105,7 @@ def test_tool_validation(engine):
     assert "Input should be a valid string" in result2
 
 def test_engine_duplicate_tool_calls(engine: InvestigationEngine) -> None:
+    engine.investigation_mode = "iterative"
     from src.domain import (
         FinishReason,
         HealthStatus,
@@ -116,6 +139,7 @@ def test_engine_duplicate_tool_calls(engine: InvestigationEngine) -> None:
     assert engine.turn_count <= engine.max_turns
 
 def test_engine_tools_cleared_in_forming_hypotheses(engine: InvestigationEngine) -> None:
+    engine.investigation_mode = "iterative"
     from src.domain import (
         FinishReason,
         HealthStatus,
