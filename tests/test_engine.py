@@ -49,7 +49,7 @@ def engine():
         pass
 
 
-def test_engine_state_transitions(engine):
+def test_engine_state_transitions(engine: InvestigationEngine) -> None:
     engine.run()
     if engine.incident.status == InvestigationStatus.FAILED:
         print(f"\nFAILED REASON: {engine.messages[-1].content}")
@@ -61,7 +61,7 @@ def test_engine_state_transitions(engine):
     assert engine.incident.hypotheses[0].description == "Downstream DB latency caused payment-api to fail."
 
 
-def test_engine_budget_enforcement(engine):
+def test_engine_run_budgets(engine: InvestigationEngine) -> None:
     # Set budgets too low so it fails
     engine.max_turns = 2
     engine.run()

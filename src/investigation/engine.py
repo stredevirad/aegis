@@ -84,7 +84,8 @@ class InvestigationEngine:
             LLMMessage(
                 role=MessageRole.USER,
                 content=f"Incident: {self.incident.title}\nDescription: {self.incident.description}\n"
-                        f"Please begin by using tools to collect initial evidence about this incident.",
+                        f"Please begin by using tools to collect initial evidence about this incident. "
+                        f"When you have gathered enough preliminary evidence, you MUST stop calling tools and provide a summary of findings to proceed.",
             )
         )
 
@@ -132,7 +133,8 @@ class InvestigationEngine:
             LLMMessage(
                 role=MessageRole.ASSISTANT,
                 content=response.content or "",
-                tool_calls=response.tool_calls
+                tool_calls=response.tool_calls,
+                thinking=response.thinking,
             )
         )
 

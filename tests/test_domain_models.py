@@ -185,11 +185,22 @@ def test_llm_request_multi_turn() -> None:
     assert req.messages[0].role == MessageRole.SYSTEM
 
 
+def test_llm_response_token_count():
+    response = LLMResponse(content="test", finish_reason=FinishReason.STOP, token_count=42, model_name="mock")
+    assert response.token_count == 42
+
+
+def test_llm_response_no_token_count():
+    response = LLMResponse(content="test", finish_reason=FinishReason.STOP, model_name="mock")
+    assert response.token_count is None
+
+
 def test_llm_response_with_error() -> None:
     resp = LLMResponse(
         content="",
         finish_reason=FinishReason.ERROR,
         error="Model not loaded",
+        model_name="mock",
     )
     assert resp.finish_reason == FinishReason.ERROR
     assert resp.error == "Model not loaded"
@@ -202,7 +213,9 @@ def test_llm_response_with_tool_calls() -> None:
             ToolCall(id="tc1", name="query_metrics", arguments={"query": "up"}),
         ],
         finish_reason=FinishReason.TOOL_CALL,
+        model_name="mock",
     )
+    assert resp.finish_reason == FinishReason.TOOL_CALL
     assert len(resp.tool_calls) == 1
     assert resp.tool_calls[0].name == "query_metrics"
 

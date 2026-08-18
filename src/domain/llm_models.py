@@ -23,6 +23,7 @@ class LLMMessage(BaseModel):
     tool_call_id: str | None = None
     tool_name: str | None = None
     tool_calls: list['ToolCall'] = Field(default_factory=list)
+    thinking: str | None = None
 
 
 # --- Tool Definitions & Calls ---
@@ -56,6 +57,7 @@ class FinishReason(str, Enum):
     LENGTH = "length"
     ERROR = "error"
     CONTENT_FILTER = "content_filter"
+    UNKNOWN = "unknown"
 
 
 class LLMRequest(BaseModel):
@@ -77,10 +79,13 @@ class LLMRequest(BaseModel):
 class LLMResponse(BaseModel):
     """A generic response from an LLM provider."""
 
-    content: str
+    content: str | None = None
+    thinking: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
-    model_name: str | None = None
-    finish_reason: FinishReason | None = None
+    finish_reason: FinishReason = FinishReason.UNKNOWN
     error: str | None = None
+    model_name: str
     token_count: int | None = None
+    prompt_eval_count: int | None = None
+    eval_count: int | None = None
     latency_ms: float | None = None
