@@ -43,6 +43,9 @@ class InvestigationEngine:
         self.turn_count = 0
         self.tool_call_count = 0
         self.start_time = time.time()
+        self.tool_call_history: set[str] = set()
+        self.duplicate_call_count = 0
+        self.useful_tool_calls_in_stage = 0
 
         # System prompt setting the constraints
         self.messages.append(
@@ -72,6 +75,7 @@ class InvestigationEngine:
     def _transition_to(self, new_status: InvestigationStatus, reason: str = "") -> None:
         if self.incident.status != new_status:
             self.incident.status = new_status
+            self.useful_tool_calls_in_stage = 0
             self.repository.save_incident(self.incident)
             self._record_event("STATE_TRANSITION", f"Transitioned to {new_status.value}. {reason}")
 
@@ -117,9 +121,14 @@ class InvestigationEngine:
 
     def _step(self) -> None:
         self.turn_count += 1
+        
+        tools = self.tool_dispatcher.get_tool_definitions()
+        if self.incident.status == InvestigationStatus.FORMING_HYPOTHESES:
+            tools = []
+
         request = LLMRequest(
             messages=self.messages,
-            tools=self.tool_dispatcher.get_tool_definitions(),
+            tools=tools,
         )
 
         self._record_event("LLM_CALL", f"Turn {self.turn_count} started in state {self.incident.status.value}.")
@@ -141,7 +150,23 @@ class InvestigationEngine:
         # Handle tool calls
         if response.finish_reason == FinishReason.TOOL_CALL and response.tool_calls:
             for tool_call in response.tool_calls:
+                call_hash = f"{tool_call.name}_{json.dumps(tool_call.arguments, sort_keys=True)}"
+                if call_hash in self.tool_call_history:
+                    self.duplicate_call_count += 1
+                    self.messages.append(
+                        LLMMessage(
+                            role=MessageRole.TOOL,
+                            content=json.dumps({"error": "This exact request has already been executed. Stop repeating and summarize the evidence."}),
+                            tool_call_id=tool_call.id,
+                            tool_name=tool_call.name,
+                        )
+                    )
+                    continue
+                else:
+                    self.tool_call_history.add(call_hash)
+                    
                 self.tool_call_count += 1
+                self.useful_tool_calls_in_stage += 1
                 self._record_event(
                     "TOOL_EXECUTION", f"Executing {tool_call.name}", tool_name=tool_call.name
                 )
@@ -156,6 +181,26 @@ class InvestigationEngine:
                         tool_name=tool_call.name,
                     )
                 )
+            
+            # Bound evidence collection explicitly
+            if self.incident.status == InvestigationStatus.COLLECTING_EVIDENCE and (self.useful_tool_calls_in_stage >= 2 or self.duplicate_call_count >= 2):
+                self._transition_to(InvestigationStatus.FORMING_HYPOTHESES)
+                self.messages.append(
+                    LLMMessage(
+                        role=MessageRole.USER,
+                        content="Evidence collection is complete. Stop using tools. Based only on the evidence collected so far, provide at least two competing hypotheses using the format 'HYPOTHESIS: <description>'",
+                    )
+                )
+            # Bound verification explicitly
+            elif self.incident.status == InvestigationStatus.VERIFYING_HYPOTHESES and (self.useful_tool_calls_in_stage >= 2 or self.duplicate_call_count >= 2):
+                self._transition_to(InvestigationStatus.CONCLUDING)
+                self.messages.append(
+                    LLMMessage(
+                        role=MessageRole.USER,
+                        content="Verification is complete. Stop using tools. Provide your final diagnosis using the format 'DIAGNOSIS: <conclusion>'",
+                    )
+                )
+
             return
 
         # State machine advancement based on LLM output
@@ -166,7 +211,7 @@ class InvestigationEngine:
             self.messages.append(
                 LLMMessage(
                     role=MessageRole.USER,
-                    content="Evidence collection complete. Please output at least two competing hypotheses using the format 'HYPOTHESIS: <description>'",
+                    content="Evidence collection is complete. Stop using tools. Based only on the evidence collected so far, provide at least two competing hypotheses using the format 'HYPOTHESIS: <description>'",
                 )
             )
             return

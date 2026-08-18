@@ -81,3 +81,67 @@ def test_tool_validation(engine):
     result2 = engine.tool_dispatcher.dispatch(tc2)
     assert "Invalid arguments" in result2
     assert "Input should be a valid string" in result2
+
+def test_engine_duplicate_tool_calls(engine: InvestigationEngine) -> None:
+    from src.domain import (
+        FinishReason,
+        HealthStatus,
+        LLMProvider,
+        LLMRequest,
+        LLMResponse,
+        ProviderStatus,
+        ToolCall,
+    )
+    
+    # Fake LLM that only generates the same tool call
+    class LoopingMockLLM(LLMProvider):
+        def __init__(self) -> None:
+            self.model = "mock"
+        def get_status(self) -> ProviderStatus:
+            return ProviderStatus(provider="mock", health=HealthStatus.HEALTHY)
+        def generate(self, request: LLMRequest) -> LLMResponse:
+            return LLMResponse(
+                content="",
+                tool_calls=[ToolCall(id="tc1", name="query_metrics", arguments={"query": "up"})],
+                finish_reason=FinishReason.TOOL_CALL,
+                model_name="mock"
+            )
+            
+    engine.llm_provider = LoopingMockLLM()
+    engine.run()
+    
+    # It should hit the duplicate loop threshold and eventually fail or transition
+    assert engine.duplicate_call_count > 0
+    # Make sure we didn't just loop infinitely
+    assert engine.turn_count <= engine.max_turns
+
+def test_engine_tools_cleared_in_forming_hypotheses(engine: InvestigationEngine) -> None:
+    from src.domain import (
+        FinishReason,
+        HealthStatus,
+        InvestigationStatus,
+        LLMProvider,
+        LLMRequest,
+        LLMResponse,
+        ProviderStatus,
+        ToolDefinition,
+    )
+    
+    engine.incident.status = InvestigationStatus.FORMING_HYPOTHESES
+    
+    class InspectingMockLLM(LLMProvider):
+        def __init__(self) -> None:
+            self.model = "mock"
+            self.received_tools: list[ToolDefinition] | None = None
+        def get_status(self) -> ProviderStatus:
+            return ProviderStatus(provider="mock", health=HealthStatus.HEALTHY)
+        def generate(self, request: LLMRequest) -> LLMResponse:
+            self.received_tools = request.tools
+            return LLMResponse(content="HYPOTHESIS: test", finish_reason=FinishReason.STOP, model_name="mock")
+            
+    mock_llm = InspectingMockLLM()
+    engine.llm_provider = mock_llm
+    
+    engine._step()
+    
+    assert mock_llm.received_tools == []

@@ -42,7 +42,7 @@ class ToolDispatcher:
         self.topology_provider = topology_provider
         self.incident_start_time = incident_start_time
 
-        from typing import Callable
+        from collections.abc import Callable
         self.registry: dict[str, tuple[Callable[..., Any], type[BaseModel]]] = {
             "get_service_health": (self._get_service_health, GetServiceHealthArgs),
             "query_metrics": (self._query_metrics, QueryMetricsArgs),

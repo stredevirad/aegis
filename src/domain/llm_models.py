@@ -73,7 +73,7 @@ class LLMRequest(BaseModel):
     messages: list[LLMMessage] = Field(default_factory=list)
     tools: list[ToolDefinition] = Field(default_factory=list)
     system_prompt: str | None = None
-    thinking_mode: bool = False
+    thinking_mode: bool | None = None
 
 
 class LLMResponse(BaseModel):

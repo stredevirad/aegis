@@ -1,12 +1,12 @@
 # Phase 1 Runtime Implementation
 
 ## Phase 1 Status
-**NOT READY — LIVE QWEN E2E FAILED**
+**PHASE 1 NOT READY — LIVE QWEN E2E STILL FAILS**
 
 The Phase 1 investigation engine has been heavily corrected and explicitly validated across all internal constraints, but the real-world live inference failed to complete deterministically within reasonable bounds on local hardware.
 
 ## Live Qwen Investigation
-**FAILED**: The investigation engine successfully initialized and communicated with `qwen3.5:9b` locally over 4 turns. However, it failed to advance past the `COLLECTING_EVIDENCE` stage within the default 180s time limit. The process hit a hard timeout (duration: 4m 11s) as it got stuck recursively generating tool calls (8 calls total) despite explicit instructions to summarize and advance.
+**FAILED**: The investigation engine successfully initialized and communicated with `qwen3.5:9b` locally over 6 turns. Thanks to the new orchestration constraints, it successfully broke out of the `COLLECTING_EVIDENCE` loop and deterministically generated two hypotheses. However, it failed to complete the investigation (record a diagnosis and recommendation) because it exhausted the configuration budgets (`MAXIMUM_LLM_TURNS=6` and `MAXIMUM_INVESTIGATION_DURATION_SECONDS=180` hit simultaneously after 3 minutes and 24 seconds).
 
 ## Tool Calling
 **PASS**: The `ToolDispatcher` successfully serialized schemas (`required` and Pydantic max lengths natively mapped) and executed multiple consecutive multi-turn round trips. The engine successfully preserved `tool_name` alongside the `tool_call_id` and cleanly formatted the Ollama tool payload.
@@ -25,7 +25,7 @@ The Phase 1 investigation engine has been heavily corrected and explicitly valid
 ## Runtime Measurements
 - **Average Turn Latency**: ~60-80 seconds per turn for a 9B model on the local host.
 - **Tokens**: Verified token logic parsing `prompt_eval_count` and `eval_count`.
-- **Observed Constraints Hit**: Total duration 251.6s, Tool Calls: 8, LLM Turns: 4. The `max_duration_seconds=180` threshold was breached, resulting in the generic `FAILED` state.
+- **Observed Constraints Hit**: Total duration 204.7s, Tool Calls: 4, LLM Turns: 6. The configuring bounds (`MAXIMUM_LLM_TURNS=6`) and (`MAXIMUM_INVESTIGATION_DURATION_SECONDS=180`) were jointly exhausted, resulting in a `FAILED` state before diagnosis could be formed.
 
 ## Remaining Limitations
 1. **Model Adherence Loop**: Qwen 3.5 9B locally struggles to halt tool execution and advance the state machine organically, necessitating either more aggressive systemic prompts, fine-tuning, or a larger model for autonomous Phase 1 progression.
@@ -39,4 +39,6 @@ The Phase 1 investigation engine has been heavily corrected and explicitly valid
 - Time window calculation relies on passing `start_time` into the dispatcher, assuming a static runtime execution window.
 
 ## Next Phase
-The system is ready for Phase 2: OpenTelemetry Demo Integration.
+Phase 2: BLOCKED
+
+The system is NOT READY for OpenTelemetry Demo Integration until the complete live Qwen investigation succeeds.

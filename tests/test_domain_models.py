@@ -185,12 +185,12 @@ def test_llm_request_multi_turn() -> None:
     assert req.messages[0].role == MessageRole.SYSTEM
 
 
-def test_llm_response_token_count():
+def test_llm_response_token_count() -> None:
     response = LLMResponse(content="test", finish_reason=FinishReason.STOP, token_count=42, model_name="mock")
     assert response.token_count == 42
 
 
-def test_llm_response_no_token_count():
+def test_llm_response_no_token_count() -> None:
     response = LLMResponse(content="test", finish_reason=FinishReason.STOP, model_name="mock")
     assert response.token_count is None
 

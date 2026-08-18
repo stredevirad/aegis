@@ -64,8 +64,8 @@ class OllamaProvider(LLMProvider):
         }
         # Configure thinking mode
         think_mode = request.thinking_mode if request.thinking_mode is not None else self.default_think
-        # Native Ollama thinking mode flag (not an options emulate)
-        payload["options"]["think"] = think_mode
+        # Native Ollama thinking mode flag (at root, not options)
+        payload["think"] = think_mode
 
         # Build messages
         if request.messages:
