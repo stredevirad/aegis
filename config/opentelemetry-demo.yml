@@ -1,0 +1,15 @@
+name: opentelemetry-demo
+environment:
+  type: docker
+telemetry:
+  metrics:
+    type: prometheus
+    endpoint: http://localhost:9090
+  logs:
+    type: opensearch
+    endpoint: http://localhost:9200
+  traces:
+    type: jaeger
+    endpoint: http://localhost:16686
+  topology:
+    type: local
