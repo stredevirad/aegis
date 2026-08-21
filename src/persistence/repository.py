@@ -29,10 +29,17 @@ class SQLiteRepository:
                     end_time TEXT,
                     status TEXT,
                     environment_profile TEXT,
-                    scenario_id TEXT
+                    scenario_id TEXT,
+                    affected_service TEXT
                 )
             """
             )
+            # Lightweight schema migration for existing databases
+            try:
+                conn.execute("ALTER TABLE incidents ADD COLUMN affected_service TEXT")
+            except sqlite3.OperationalError:
+                pass
+            
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS hypotheses (
@@ -96,8 +103,8 @@ class SQLiteRepository:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO incidents 
-                (id, title, description, start_time, end_time, status, environment_profile, scenario_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, title, description, start_time, end_time, status, environment_profile, scenario_id, affected_service) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     incident.id,
@@ -108,6 +115,7 @@ class SQLiteRepository:
                     incident.status.value,
                     incident.environment_profile,
                     incident.scenario_id,
+                    incident.affected_service,
                 ),
             )
 
@@ -208,7 +216,8 @@ class SQLiteRepository:
                 start_time=datetime.fromisoformat(row["start_time"]),
                 status=InvestigationStatus(row["status"]),
                 environment_profile=row["environment_profile"],
-                scenario_id=row["scenario_id"]
+                scenario_id=row["scenario_id"],
+                affected_service=row["affected_service"]
             )
             if row["end_time"]:
                 incident.end_time = datetime.fromisoformat(row["end_time"])
