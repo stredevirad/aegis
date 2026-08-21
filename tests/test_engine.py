@@ -169,3 +169,36 @@ def test_engine_tools_cleared_in_forming_hypotheses(engine: InvestigationEngine)
     engine._step()
     
     assert mock_llm.received_tools == []
+
+
+def test_engine_sqlite_evidence_equality(engine: InvestigationEngine) -> None:
+    from src.domain.models import Evidence, EvidenceType
+    import time
+    
+    ev_id = f"ev_verif_{int(time.time()*1000)}"
+    ev = Evidence(
+        id=ev_id,
+        type=EvidenceType.METRIC,
+        source_provider="mock-metrics",
+        summary="Test summary",
+        service_resource="orders-service",
+        data={"key": "value"},
+        observed_at=engine.incident.start_time,
+        collected_at=datetime.now(timezone.utc)
+    )
+    engine.incident.evidence.append(ev)
+    engine.repository.save_incident(engine.incident)
+    
+    loaded = engine.repository.load_incident(engine.incident.id)
+    assert loaded is not None
+    assert len(loaded.evidence) == 1
+    
+    loaded_ev = loaded.evidence[0]
+    assert loaded_ev.id == ev.id
+    assert loaded_ev.type == ev.type
+    assert loaded_ev.source_provider == ev.source_provider
+    assert loaded_ev.summary == ev.summary
+    assert loaded_ev.service_resource == ev.service_resource
+    assert loaded_ev.data == ev.data
+    assert loaded_ev.observed_at == ev.observed_at
+    assert loaded_ev.collected_at == ev.collected_at

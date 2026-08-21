@@ -87,6 +87,24 @@ class MockMetricsProvider(MetricsProvider):
                     collected_at=now,
                 )
             )
+        elif "orders-service" in query:
+            evidence.append(
+                Evidence(
+                    id="ev_metric_orders",
+                    type=EvidenceType.METRIC,
+                    source_provider="mock-metrics",
+                    service_resource="orders-service",
+                    summary="High latency on orders-service",
+                    data={
+                        "metric_name": "http_request_duration_ms",
+                        "value": 2000.0,
+                        "unit": "ms",
+                        "threshold": 500.0,
+                    },
+                    observed_at=now,
+                    collected_at=now,
+                )
+            )
         return evidence
 
 
@@ -109,6 +127,22 @@ class MockLogsProvider(LogsProvider):
                     summary="Timeout errors connecting to downstream-db",
                     data={
                         "message": "Timeout waiting for response from downstream-db",
+                        "level": "ERROR",
+                    },
+                    observed_at=now,
+                    collected_at=now,
+                )
+            )
+        elif "orders-service" in query:
+            evidence.append(
+                Evidence(
+                    id="ev_log_orders",
+                    type=EvidenceType.LOG,
+                    source_provider="mock-logs",
+                    service_resource="orders-service",
+                    summary="Timeout in orders-service",
+                    data={
+                        "message": "Timeout waiting for inventory",
                         "level": "ERROR",
                     },
                     observed_at=now,

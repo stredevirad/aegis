@@ -61,6 +61,10 @@ class Evidence(BaseModel):
     observed_at: AwareDatetime
     collected_at: AwareDatetime
 
+class ToolResult(BaseModel):
+    evidence: list[Evidence] = Field(default_factory=list)
+    summary: Any = None
+
 
 # --- Hypothesis ---
 

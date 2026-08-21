@@ -164,34 +164,24 @@ class InvestigationEngine:
         res_logs = self.tool_dispatcher.dispatch(ToolCall(id="initial_l", name="search_logs", arguments={"query": target}))
         self.tool_call_count += 2
 
-        # Create Evidence objects
-        from src.domain.models import Evidence, EvidenceType
-        e_metrics = Evidence(
-            id=f"ev_m_{int(time.time()*1000)}",
-            type=EvidenceType.METRIC,
-            source_provider="mock-metrics",
-            service_resource=target,
-            summary="Initial metric evaluation",
-            data=res_metrics if isinstance(res_metrics, dict) else {"result": res_metrics},
-            observed_at=self.incident.start_time,
-            collected_at=datetime.now(timezone.utc)
-        )
-        e_logs = Evidence(
-            id=f"ev_l_{int(time.time()*1000)}",
-            type=EvidenceType.LOG,
-            source_provider="mock-logs",
-            service_resource=target,
-            summary="Initial log evaluation",
-            data=res_logs if isinstance(res_logs, dict) else {"result": res_logs},
-            observed_at=self.incident.start_time,
-            collected_at=datetime.now(timezone.utc)
-        )
+        # Extract real evidence objects and append without duplication
+        from src.domain.models import ToolResult
         
-        self.incident.evidence.extend([e_metrics, e_logs])
+        existing_ids = {e.id for e in self.incident.evidence}
+        for res in (res_metrics, res_logs):
+            if isinstance(res, ToolResult):
+                for e in res.evidence:
+                    if e.id not in existing_ids:
+                        self.incident.evidence.append(e)
+                        existing_ids.add(e.id)
+                        
         self.repository.save_incident(self.incident)
 
-        evidence_bundle.append(f"--- Initial Metrics ---\n{json.dumps(res_metrics, default=str)}")
-        evidence_bundle.append(f"--- Initial Logs ---\n{json.dumps(res_logs, default=str)}")
+        m_summary = res_metrics.summary if isinstance(res_metrics, ToolResult) else res_metrics
+        l_summary = res_logs.summary if isinstance(res_logs, ToolResult) else res_logs
+        
+        evidence_bundle.append(f"--- Initial Metrics ---\n{json.dumps(m_summary, default=str)}")
+        evidence_bundle.append(f"--- Initial Logs ---\n{json.dumps(l_summary, default=str)}")
         
         self.messages.append(
             LLMMessage(
@@ -209,28 +199,27 @@ class InvestigationEngine:
     def _fast_mode_execute_verification(self, tool_calls: list[ToolCall]) -> None:
         self._transition_to(InvestigationStatus.VERIFYING_HYPOTHESES)
         
-        from src.domain.models import Evidence, EvidenceType
+        from src.domain.models import ToolResult
         evidence_results = []
         collected_evidence_ids = []
+        existing_ids = {e.id for e in self.incident.evidence}
         
         for idx, tool_call in enumerate(tool_calls[:2]): # Max 2 verification calls
             self._record_event("TOOL_EXECUTION", f"Deterministic verification: {tool_call.name}", tool_name=tool_call.name)
             res = self.tool_dispatcher.dispatch(tool_call)
             self.tool_call_count += 1
             
-            ev_id = f"ev_verif_{int(time.time()*1000)}_{idx}"
-            ev = Evidence(
-                id=ev_id,
-                type=EvidenceType.UNKNOWN,
-                source_provider=f"mock-{tool_call.name}",
-                summary=f"Verification via {tool_call.name}",
-                data=res if isinstance(res, dict) else {"result": res},
-                observed_at=self.incident.start_time,
-                collected_at=datetime.now(timezone.utc)
-            )
-            self.incident.evidence.append(ev)
-            collected_evidence_ids.append(ev_id)
-            evidence_results.append(f"--- Verification via {tool_call.name} ---\n{json.dumps(res, default=str)}")
+            if isinstance(res, ToolResult):
+                for e in res.evidence:
+                    if e.id not in existing_ids:
+                        self.incident.evidence.append(e)
+                        existing_ids.add(e.id)
+                        collected_evidence_ids.append(e.id)
+                summary_data = res.summary
+            else:
+                summary_data = res
+                
+            evidence_results.append(f"--- Verification via {tool_call.name} ---\n{json.dumps(summary_data, default=str)}")
             
         # Link collected verification evidence to hypotheses conceptually
         for h in self.incident.hypotheses:
@@ -324,10 +313,22 @@ class InvestigationEngine:
 
                 result = self.tool_dispatcher.dispatch(tool_call)
 
+                from src.domain.models import ToolResult
+                if isinstance(result, ToolResult):
+                    existing_ids = {e.id for e in self.incident.evidence}
+                    for e in result.evidence:
+                        if e.id not in existing_ids:
+                            self.incident.evidence.append(e)
+                            existing_ids.add(e.id)
+                    self.repository.save_incident(self.incident)
+                    summary_content = result.summary
+                else:
+                    summary_content = result
+
                 self.messages.append(
                     LLMMessage(
                         role=MessageRole.TOOL,
-                        content=json.dumps(result, default=str),
+                        content=json.dumps(summary_content, default=str),
                         tool_call_id=tool_call.id,
                         tool_name=tool_call.name,
                     )

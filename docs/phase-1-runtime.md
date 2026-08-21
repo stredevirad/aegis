@@ -9,6 +9,11 @@ To address heavy local generation latency, Aegis Phase 1 now introduces two disc
 - **`FAST` (Development Default)**: deterministic evidence acquisition -> LLM hypothesis generation -> bounded deterministic verification -> LLM diagnosis/recommendation.
 - **`ITERATIVE` (Research Baseline)**: LLM-driven iterative tool use -> bounded evidence gathering -> hypotheses -> verification -> conclusion.
 
+## Evidence Architecture
+To preserve strict provenance and reduce context length, Aegis natively decouples authoritative evidence payloads from LLM context:
+- **Authoritative Provenance**: Providers return actual `Evidence` models bundled inside a `ToolResult`. These objects are deduplicated and appended directly to `Incident.evidence` and persisted immutably in SQLite.
+- **LLM Summary Views**: A compact, derived representation of the evidence (e.g., metric summaries or log counts) is separately extracted from the `ToolResult` and inserted into the LLM context. No synthetic `Evidence` models are fabricated from LLM-formatted summaries.
+
 ## 4B Live Result
 **SUCCESS**: Using the `FAST` architecture mode, the 4B local development model successfully traversed the investigation pipeline and generated a complete, evidence-grounded root cause analysis.
 - **Final State**: `RECORDED`

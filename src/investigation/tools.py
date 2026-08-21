@@ -9,6 +9,7 @@ from src.domain import (
     MetricsProvider,
     ToolCall,
     ToolDefinition,
+    ToolResult,
     TopologyProvider,
 )
 
@@ -95,7 +96,7 @@ class ToolDispatcher:
             ),
         ]
 
-    def dispatch(self, tool_call: ToolCall) -> list[Evidence] | dict[str, Any] | str:
+    def dispatch(self, tool_call: ToolCall) -> ToolResult | str:
         """Executes a tool call and returns the result."""
         entry = self.registry.get(tool_call.name)
         if not entry:
@@ -114,26 +115,26 @@ class ToolDispatcher:
         except Exception as e:
             return f"Error executing tool '{tool_call.name}': {e!s}"
 
-    def _get_service_health(self, service_name: str) -> dict[str, Any]:
+    def _get_service_health(self, service_name: str) -> ToolResult:
         health = self.metrics_provider.get_service_health(service_name)
-        return {"service": service_name, "status": health.status.value}
+        return ToolResult(summary={"service": service_name, "status": health.status.value})
 
-    def _query_metrics(self, query: str) -> list[dict[str, Any]]:
+    def _query_metrics(self, query: str) -> ToolResult:
         # Use incident start time to current time as the bounded window
         end_time = datetime.now(timezone.utc)
         start_time = self.incident_start_time
         evidence_list = self.metrics_provider.query_metrics(query, start_time, end_time)
-        return self._summarize_evidence(evidence_list)
+        return ToolResult(evidence=evidence_list, summary=self._summarize_evidence(evidence_list))
 
-    def _search_logs(self, query: str) -> list[dict[str, Any]]:
+    def _search_logs(self, query: str) -> ToolResult:
         end_time = datetime.now(timezone.utc)
         start_time = self.incident_start_time
         evidence_list = self.logs_provider.search_logs(query, start_time, end_time)
-        return self._summarize_evidence(evidence_list)
+        return ToolResult(evidence=evidence_list, summary=self._summarize_evidence(evidence_list))
 
-    def _get_service_dependencies(self, service_name: str) -> dict[str, Any]:
+    def _get_service_dependencies(self, service_name: str) -> ToolResult:
         deps = self.topology_provider.get_service_dependencies(service_name)
-        return {"service": service_name, "dependencies": deps.get(service_name, [])}
+        return ToolResult(summary={"service": service_name, "dependencies": deps.get(service_name, [])})
 
     def _summarize_evidence(self, evidence_list: list[Evidence]) -> list[dict[str, Any]]:
         """Compact representation of evidence for the LLM context window."""
