@@ -7,9 +7,9 @@ The `JaegerProvider` adapter implements the `TracesProvider` interface. It trans
 Configured dynamically by reading `config/opentelemetry-demo.yaml`, extracting `telemetry.traces.endpoint`. When using the local OTel Demo, this connects to the ephemeral port mapping corresponding to Jaeger's Web UI/API port (typically `16686`).
 
 ## API Operations Used
-- `GET /jaeger/ui/api/services`: Used by `get_status()` as a fast, lightweight health check.
-- `GET /jaeger/ui/api/traces`: Used by `get_related_traces()` to search for traces bounding by time and service.
-- `GET /jaeger/ui/api/traces/{trace_id}`: Used by `get_trace()` to fetch the structural data for a specific trace.
+- `GET <endpoint>/jaeger/ui/api/services`: Used by `get_status()` as a fast, lightweight health check.
+- `GET <endpoint>/jaeger/ui/api/traces`: Used by `get_related_traces()` to search for traces bounding by time and service.
+- `GET <endpoint>/jaeger/ui/api/traces/{trace_id}`: Used by `get_trace()` to fetch the structural data for a specific trace.
 
 ## Trace Normalization & Evidence Mapping
 Jaeger hits are normalized into single Trace-level `Evidence` objects to avoid overloading the LLM context window with hundreds of span objects per trace.
