@@ -31,27 +31,36 @@ def run_demo(use_mock_llm: bool = False, live_telemetry: bool = False) -> None:
         import yaml
         from src.adapters.prometheus import PrometheusProvider
         from src.adapters.opensearch import OpenSearchProvider
+        from src.adapters.jaeger import JaegerProvider
         
         config_path = Path(__file__).parent.parent.parent / "config" / "opentelemetry-demo.yaml"
         metrics_endpoint = "http://localhost:9090"
         logs_endpoint = "http://localhost:9200"
+        traces_endpoint = "http://localhost:16686"
         
         if config_path.exists():
             with open(config_path, "r") as f:
                 config = yaml.safe_load(f)
                 metrics_endpoint = config.get("telemetry", {}).get("metrics", {}).get("endpoint", metrics_endpoint)
                 logs_endpoint = config.get("telemetry", {}).get("logs", {}).get("endpoint", logs_endpoint)
+                traces_endpoint = config.get("telemetry", {}).get("traces", {}).get("endpoint", traces_endpoint)
         
         print(f"    - Using LIVE PrometheusProvider ({metrics_endpoint})")
         metrics_provider = PrometheusProvider(endpoint=metrics_endpoint)
         
         print(f"    - Using LIVE OpenSearchProvider ({logs_endpoint})")
         logs_provider = OpenSearchProvider(endpoint=logs_endpoint)
+        
+        print(f"    - Using LIVE JaegerProvider ({traces_endpoint})")
+        traces_provider = JaegerProvider(endpoint=traces_endpoint)
     else:
+        from src.adapters.mock_providers import MockTracesProvider
         print("    - Using MOCK MockMetricsProvider")
         metrics_provider = MockMetricsProvider()
         print("    - Using MOCK MockLogsProvider")
         logs_provider = MockLogsProvider()
+        print("    - Using MOCK MockTracesProvider")
+        traces_provider = MockTracesProvider()
         
     topology_provider = MockTopologyProvider()
 
@@ -70,7 +79,7 @@ def run_demo(use_mock_llm: bool = False, live_telemetry: bool = False) -> None:
 
     # 3. Create Tool Dispatcher
     print("[3] Creating Tool Dispatcher...")
-    tool_dispatcher = ToolDispatcher(metrics_provider, logs_provider, topology_provider, incident_start_time=incident_start)
+    tool_dispatcher = ToolDispatcher(metrics_provider, logs_provider, topology_provider, incident_start_time=incident_start, traces_provider=traces_provider)
 
     # 4. Initialize LLM Provider
     llm_provider: Any

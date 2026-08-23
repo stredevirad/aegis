@@ -9,7 +9,8 @@ Source adapters retrieve telemetry.
   - **Implementation**: `PrometheusProvider` (Phase 2B) translates generic `query_metrics` calls into Prometheus HTTP `/api/v1/query_range` requests, executing PromQL and bounding queries to a 12-hour limit.
 * `LogsProvider`: Queries structured or unstructured logs. Returns normalized `Evidence`.
   - **Implementation**: `OpenSearchProvider` (Phase 2C) translates queries into OpenSearch `query_string` and timestamp range filters, converting raw documents into concise `Evidence` elements.
-* `TracesProvider`: Queries distributed traces and spans (e.g., Tempo or Jaeger adapter).
+* `TracesProvider`: Queries distributed traces and spans. Returns trace-level normalized `Evidence`.
+  - **Implementation**: `JaegerProvider` (Phase 2D) translates queries into Jaeger `/api/traces` requests, converting large span trees into compact structural trace representations.
 
 ### Query Convention
 `MetricsProvider.query_metrics(query, ...)` and `LogsProvider.search_logs(query, ...)` accept a backend-specific pass-through `query` string (e.g., PromQL for Prometheus, LogQL for Loki, CloudWatch metric namespace for AWS). The investigation engine's tool layer is responsible for constructing the query appropriate to the registered provider. The core domain does NOT interpret query syntax.

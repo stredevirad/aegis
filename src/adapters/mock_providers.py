@@ -11,6 +11,7 @@ from src.domain import (
     ProviderStatus,
     ServiceHealth,
     TopologyProvider,
+    TracesProvider,
 )
 
 
@@ -163,3 +164,30 @@ class MockTopologyProvider(TopologyProvider):
             "cart-api": ["downstream-db"],
         }
         return {service_name: topology.get(service_name, [])}
+
+
+class MockTracesProvider(TracesProvider):
+    def get_status(self) -> ProviderStatus:
+        return ProviderStatus(provider="mock-traces", health=HealthStatus.HEALTHY)
+
+    def get_trace(self, trace_id: str) -> Evidence | None:
+        return None
+
+    def get_related_traces(
+        self, service_name: str, start_time: AwareDatetime, end_time: AwareDatetime
+    ) -> list[Evidence]:
+        now = datetime.now(timezone.utc)
+        if service_name == "payment-api":
+            return [
+                Evidence(
+                    id="ev_trace_mock_1",
+                    type=EvidenceType.TRACE,
+                    source_provider="mock-traces",
+                    service_resource="payment-api",
+                    summary="Trace: process_payment (3 spans, 1500ms)",
+                    observed_at=now,
+                    collected_at=now,
+                    data={"trace_id": "mock1"}
+                )
+            ]
+        return []

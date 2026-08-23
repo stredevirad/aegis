@@ -11,6 +11,7 @@ from src.domain import (
     ToolDefinition,
     ToolResult,
     TopologyProvider,
+    TracesProvider,
 )
 
 
@@ -30,6 +31,12 @@ class GetServiceDependenciesArgs(BaseModel):
     service_name: str = Field(..., max_length=100)
 
 
+class GetTraceArgs(BaseModel):
+    trace_id: str = Field(..., max_length=100)
+
+class SearchTracesArgs(BaseModel):
+    service_name: str = Field(..., max_length=100)
+
 class ToolDispatcher:
     def __init__(
         self,
@@ -37,10 +44,12 @@ class ToolDispatcher:
         logs_provider: LogsProvider,
         topology_provider: TopologyProvider,
         incident_start_time: datetime,
+        traces_provider: TracesProvider = None, # type: ignore
     ):
         self.metrics_provider = metrics_provider
         self.logs_provider = logs_provider
         self.topology_provider = topology_provider
+        self.traces_provider = traces_provider
         self.incident_start_time = incident_start_time
 
         from collections.abc import Callable
@@ -50,6 +59,9 @@ class ToolDispatcher:
             "search_logs": (self._search_logs, SearchLogsArgs),
             "get_service_dependencies": (self._get_service_dependencies, GetServiceDependenciesArgs),
         }
+        if self.traces_provider:
+            self.registry["search_traces"] = (self._search_traces, SearchTracesArgs)
+            self.registry["get_trace"] = (self._get_trace, GetTraceArgs)
 
     def get_tool_definitions(self) -> list[ToolDefinition]:
         return [
@@ -95,6 +107,28 @@ class ToolDispatcher:
                 required=["service_name"],
             ),
         ]
+        
+        if self.traces_provider:
+            defs.extend([
+                ToolDefinition(
+                    name="search_traces",
+                    description="Search for traces related to a specific service.",
+                    parameters={
+                        "service_name": {"type": "string", "description": "The name of the service (e.g. frontend)"}
+                    },
+                    required=["service_name"]
+                ),
+                ToolDefinition(
+                    name="get_trace",
+                    description="Get detailed information about a specific trace.",
+                    parameters={
+                        "trace_id": {"type": "string", "description": "The ID of the trace"}
+                    },
+                    required=["trace_id"]
+                )
+            ])
+            
+        return defs
 
     def dispatch(self, tool_call: ToolCall) -> ToolResult | str:
         """Executes a tool call and returns the result."""
@@ -135,6 +169,22 @@ class ToolDispatcher:
     def _get_service_dependencies(self, service_name: str) -> ToolResult:
         deps = self.topology_provider.get_service_dependencies(service_name)
         return ToolResult(summary={"service": service_name, "dependencies": deps.get(service_name, [])})
+
+    def _search_traces(self, service_name: str) -> ToolResult:
+        if not self.traces_provider:
+            return ToolResult(summary={"error": "TracesProvider not configured"})
+        end_time = datetime.now(timezone.utc)
+        start_time = self.incident_start_time
+        evidence_list = self.traces_provider.get_related_traces(service_name, start_time, end_time)
+        return ToolResult(evidence=evidence_list, summary=self._summarize_evidence(evidence_list))
+        
+    def _get_trace(self, trace_id: str) -> ToolResult:
+        if not self.traces_provider:
+            return ToolResult(summary={"error": "TracesProvider not configured"})
+        ev = self.traces_provider.get_trace(trace_id)
+        if not ev:
+            return ToolResult(summary={"error": f"Trace {trace_id} not found"})
+        return ToolResult(evidence=[ev], summary=self._summarize_evidence([ev]))
 
     def _summarize_evidence(self, evidence_list: list[Evidence]) -> list[dict[str, Any]]:
         """Compact representation of evidence for the LLM context window."""
