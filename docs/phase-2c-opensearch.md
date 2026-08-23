@@ -45,7 +45,18 @@ Returns `RuntimeError` on invalid JSON, OpenSearch-specific API errors (like mis
 - **Integration**: The test probes `http://localhost:9200` for `frontend` application logs if the OpenSearch container is accessible.
 
 ## Live Verification
-The implementation is validated live by invoking `python scripts/verify-phase2c.py`.
+The implementation is validated live by invoking `python -m scripts.verify-phase2c`.
+
+Results:
+- **Backend**: Successfully connected to `http://localhost:<ephemeral-port>`.
+- **Query**: "frontend" mapped via `search_logs` against OpenSearch indices.
+- **Evidence Count**: Successfully returned 100 Evidence objects (the bounded max `size` set in the provider) matching the live application traffic.
+- **Evidence Structure**:
+  - `id`: e.g. `ev_log_14f098541b99`
+  - `type`: `EvidenceType.LOG`
+  - `source_provider`: `opensearch`
+  - `service_resource`: `frontend-proxy`
+  - `summary`: e.g. `[UNKNOWN] [2026-08-23T15:07:59.234Z] "GET /images/products/StarsenseExplorer.jpg HTTP/1.1" 200 - via_upstream ...`
 
 ## Known Limitations
 The adapter intentionally omits heavy OpenSearch DSL abstractions or client libraries, performing lightweight raw `httpx` JSON payloads to respect project boundaries. It only extracts common OTel demo fields and skips deeper nested span log correlation for now.

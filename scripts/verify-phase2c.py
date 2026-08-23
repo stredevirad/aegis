@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import yaml
 from pathlib import Path
 from src.adapters.opensearch import OpenSearchProvider
@@ -24,7 +24,12 @@ def main():
     logs = OpenSearchProvider(endpoint=endpoint)
     topo = MockTopologyProvider()
     
-    dispatcher = ToolDispatcher(metrics, logs, topo, incident_start_time=datetime.now(timezone.utc))
+    dispatcher = ToolDispatcher(
+        metrics, 
+        logs, 
+        topo, 
+        incident_start_time=datetime.now(timezone.utc) - timedelta(hours=1)
+    )
     
     # Fake a ToolCall that queries OpenSearch
     call = ToolCall(
