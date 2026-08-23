@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 from typing import Any
 
 
-def run_demo(use_mock_llm: bool = False) -> None:
+def run_demo(use_mock_llm: bool = False, live_telemetry: bool = False) -> None:
     print("=" * 60)
     print("Aegis Phase 1 - End-to-End Deterministic Investigation")
     print("=" * 60)
@@ -24,9 +24,35 @@ def run_demo(use_mock_llm: bool = False) -> None:
     repository = SQLiteRepository(db_path="aegis_demo.db")
 
     # 2. Register Mock Telemetry Providers
-    print("[2] Registering Mock Telemetry Providers...")
-    metrics_provider = MockMetricsProvider()
-    logs_provider = MockLogsProvider()
+    print("[2] Registering Telemetry Providers...")
+    
+    if live_telemetry:
+        from pathlib import Path
+        import yaml
+        from src.adapters.prometheus import PrometheusProvider
+        from src.adapters.opensearch import OpenSearchProvider
+        
+        config_path = Path(__file__).parent.parent.parent / "config" / "opentelemetry-demo.yaml"
+        metrics_endpoint = "http://localhost:9090"
+        logs_endpoint = "http://localhost:9200"
+        
+        if config_path.exists():
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+                metrics_endpoint = config.get("telemetry", {}).get("metrics", {}).get("endpoint", metrics_endpoint)
+                logs_endpoint = config.get("telemetry", {}).get("logs", {}).get("endpoint", logs_endpoint)
+        
+        print(f"    - Using LIVE PrometheusProvider ({metrics_endpoint})")
+        metrics_provider = PrometheusProvider(endpoint=metrics_endpoint)
+        
+        print(f"    - Using LIVE OpenSearchProvider ({logs_endpoint})")
+        logs_provider = OpenSearchProvider(endpoint=logs_endpoint)
+    else:
+        print("    - Using MOCK MockMetricsProvider")
+        metrics_provider = MockMetricsProvider()
+        print("    - Using MOCK MockLogsProvider")
+        logs_provider = MockLogsProvider()
+        
     topology_provider = MockTopologyProvider()
 
     # 5. Create Fake Incident
@@ -107,4 +133,5 @@ if __name__ == "__main__":
     import sqlite3
 
     use_mock = "--mock-llm" in sys.argv
-    run_demo(use_mock_llm=use_mock)
+    live_telemetry = "--live-telemetry" in sys.argv
+    run_demo(use_mock_llm=use_mock, live_telemetry=live_telemetry)

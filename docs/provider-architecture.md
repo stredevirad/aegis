@@ -5,8 +5,10 @@ Providers act as the adapter layer between the Aegis investigation engine and ex
 
 ## Source Adapters (Evidence)
 Source adapters retrieve telemetry.
-* `MetricsProvider`: Queries metrics and calculates service health (e.g., Prometheus adapter). Returns structured `ServiceHealth` models and normalized `Evidence`.
-* `LogsProvider`: Queries structured or unstructured logs (e.g., Loki adapter).
+* `MetricsProvider`: Queries metrics and calculates service health. Returns structured `ServiceHealth` models and normalized `Evidence`.
+  - **Implementation**: `PrometheusProvider` (Phase 2B) translates generic `query_metrics` calls into Prometheus HTTP `/api/v1/query_range` requests, executing PromQL and bounding queries to a 12-hour limit.
+* `LogsProvider`: Queries structured or unstructured logs. Returns normalized `Evidence`.
+  - **Implementation**: `OpenSearchProvider` (Phase 2C) translates queries into OpenSearch `query_string` and timestamp range filters, converting raw documents into concise `Evidence` elements.
 * `TracesProvider`: Queries distributed traces and spans (e.g., Tempo or Jaeger adapter).
 
 ### Query Convention
