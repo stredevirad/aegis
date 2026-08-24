@@ -1,7 +1,7 @@
 # Aegis RCA Evaluation — Human Annotation Guide
 
 ## Objective
-This guide defines the methodology for human experts to independently evaluate Root Cause Analysis (RCA) diagnoses produced by Aegis against ground-truth incident facts.
+This guide defines the rubric and methodology for single-human reference annotation to evaluate Root Cause Analysis (RCA) diagnoses produced by Aegis against ground-truth incident facts.
 
 ---
 

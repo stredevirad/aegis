@@ -15,9 +15,9 @@
 ---
 
 ## Research Highlights
-- **Pre-LLM Diagnostic Summarization**: Proved that structured statistical summarization (latency percentiles, error breakdowns, service activity) is essential for small LLMs; naive context truncation caused catastrophic false negatives (`NO_ANOMALY` during active outages).
-- **Error-Focused Query Strategy**: Demonstrated that querying error-specific metrics (`5xx` status codes) and error logs yields a **2.3x investigation speedup** and a **59% reduction in evidence noise**.
-- **Epistemic Honesty Under Neutral Prompts**: Proved that when prompt hints are eliminated ("Service Anomaly Detected"), the model concludes `INSUFFICIENT` rather than hallucinating unsupported root causes.
+- **Pre-LLM Diagnostic Summarization**: Demonstrated that in evaluated fault scenarios, structured statistical summarization (latency percentiles, error breakdowns, service activity) is essential for small LLMs; naive context truncation caused catastrophic false negatives (`NO_ANOMALY` during active outages).
+- **Error-Focused Query Strategy**: Demonstrated that querying error-specific metrics (`5xx` status codes) and error logs yields a **2.3x investigation speedup** and a **59% reduction in evidence noise** in the evaluated comparison.
+- **Epistemic Honesty Under Neutral Prompts**: Observed that when prompt hints are eliminated ("Service Anomaly Detected"), the model concludes `INSUFFICIENT` rather than hallucinating unsupported root causes.
 - **RCA Evaluator with Leak Detection**: Built a deterministic evaluation engine that penalizes prompt echoes and requires causal language, achieving substantial agreement (**$\kappa = 0.778$**, **83.3% observed agreement**) against a 12-case reference benchmark.
 
 ---

@@ -6,7 +6,7 @@ Aegis is a general, evidence-grounded incident investigation and root-cause anal
 ## Core Directives
 1. **Generality**: Aegis must not be tightly coupled to a specific demonstration application (e.g., Astronomy Shop). Concepts must be generic (service, endpoint, metric, trace, etc.).
 2. **Evidence-Grounded AI**: The LLM must not invent telemetry. Every claim must trace to a verifiable evidence object.
-3. **Local First**: Development and initial research use a local Ollama model (`qwen3.5:9b`). Cloud LLMs are optional and for later comparison.
+3. **Local First**: Development and initial research use a local Ollama model (`qwen3.5:4b` for development / `qwen3.5:9b` for research). Cloud LLMs are optional and for later comparison.
 4. **Resource Consciousness**: Target environment is a 16GB consumer laptop without assuming a high-end discrete GPU. Keep the database lightweight (SQLite initially) and background processing simple (no Kafka/RabbitMQ in V1).
 5. **Read-Only Remediation**: V1 will recommend remediation actions, but will not automatically execute operational changes.
 

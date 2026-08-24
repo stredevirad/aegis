@@ -5,7 +5,7 @@
 * **Port Conflicts**: Common ports (8080, 4317, 9090, 3100) might conflict with local services. Always check port availability (`netstat -ano`) before starting environments.
 
 ## Ollama Issues
-* **Model Not Found**: Ensure `qwen3.5:9b` is installed via `ollama run qwen3.5:9b`.
+* **Model Not Found**: Ensure `qwen3.5:4b` (or `qwen3.5:9b`) is installed via `ollama run qwen3.5:4b`.
 * **API Timeout**: If the local API (`http://localhost:11434`) times out, restart the Ollama service.
 * **Slow Inference**: Check `OLLAMA_THINK` flag. Set to `false` for standard development. 
 
