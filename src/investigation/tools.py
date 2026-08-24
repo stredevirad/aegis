@@ -51,6 +51,10 @@ class SearchErrorTracesArgs(BaseModel):
     service_name: str = Field(..., max_length=100)
 
 
+class _GenericCustomArgs(BaseModel):
+    model_config = {"extra": "allow"}
+
+
 class ToolDispatcher:
     def __init__(
         self,
@@ -91,7 +95,7 @@ class ToolDispatcher:
     ) -> None:
         """Register an external or custom tool (e.g. from an MCP client adapter)."""
         if args_model is None:
-            args_model = BaseModel
+            args_model = _GenericCustomArgs
         self.registry[definition.name] = (handler, args_model)
         self.custom_tool_definitions = [
             d for d in self.custom_tool_definitions if d.name != definition.name
