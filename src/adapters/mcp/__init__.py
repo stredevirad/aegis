@@ -2,6 +2,7 @@
 
 Phase 4A: Exposes read-only Aegis investigation tools over MCP.
 """
+from src.adapters.mcp.client import AegisMCPClient
 from src.adapters.mcp.server import (
     AegisMCPServer,
     create_mcp_server,
@@ -10,6 +11,7 @@ from src.adapters.mcp.server import (
 )
 
 __all__ = [
+    "AegisMCPClient",
     "AegisMCPServer",
     "create_mcp_server",
     "serialize_evidence",

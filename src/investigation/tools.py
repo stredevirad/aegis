@@ -81,6 +81,23 @@ class ToolDispatcher:
             self.registry["get_trace"] = (self._get_trace, GetTraceArgs)
             self.registry["search_error_traces"] = (self._search_error_traces, SearchErrorTracesArgs)
 
+        self.custom_tool_definitions: list[ToolDefinition] = []
+
+    def register_custom_tool(
+        self,
+        definition: ToolDefinition,
+        handler: Any,
+        args_model: type[BaseModel] | None = None,
+    ) -> None:
+        """Register an external or custom tool (e.g. from an MCP client adapter)."""
+        if args_model is None:
+            args_model = BaseModel
+        self.registry[definition.name] = (handler, args_model)
+        self.custom_tool_definitions = [
+            d for d in self.custom_tool_definitions if d.name != definition.name
+        ]
+        self.custom_tool_definitions.append(definition)
+
     def get_tool_definitions(self) -> list[ToolDefinition]:
         defs = [
             ToolDefinition(
@@ -170,7 +187,8 @@ class ToolDispatcher:
                     required=["service_name"],
                 ),
             ])
-            
+
+        defs.extend(self.custom_tool_definitions)
         return defs
 
     def dispatch(self, tool_call: ToolCall) -> ToolResult | str:
