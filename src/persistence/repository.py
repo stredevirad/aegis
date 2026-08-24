@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from src.domain import (
     DiagnosisClassification,
+    Evidence,
     Hypothesis,
     HypothesisStatus,
     Incident,
@@ -273,3 +274,63 @@ class SQLiteRepository:
                     supporting_evidence_ids=json.loads(row["supporting_evidence_ids"])
                 ))
             return recs
+
+    def load_evidence(self, evidence_id: str) -> "Evidence | None":
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM evidence WHERE id = ?", (evidence_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            from src.domain.models import Evidence, EvidenceType
+            return Evidence(
+                id=row["id"],
+                type=EvidenceType(row["type"]),
+                source_provider=row["source_provider"],
+                service_resource=row["service_resource"],
+                summary=row["summary"],
+                data=json.loads(row["data"]),
+                observed_at=datetime.fromisoformat(row["observed_at"]),
+                collected_at=datetime.fromisoformat(row["collected_at"]),
+            )
+
+    def list_evidence(
+        self,
+        incident_id: str | None = None,
+        service_resource: str | None = None,
+        evidence_type: str | None = None,
+        limit: int = 50,
+    ) -> list["Evidence"]:
+        query = "SELECT * FROM evidence WHERE 1=1"
+        params: list[object] = []
+        if incident_id:
+            query += " AND incident_id = ?"
+            params.append(incident_id)
+        if service_resource:
+            query += " AND service_resource = ?"
+            params.append(service_resource)
+        if evidence_type:
+            query += " AND type = ?"
+            params.append(evidence_type.upper())
+        query += " ORDER BY observed_at DESC LIMIT ?"
+        params.append(min(max(1, limit), 100))
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(query, tuple(params))
+            from src.domain.models import Evidence, EvidenceType
+            items = []
+            for row in cursor.fetchall():
+                items.append(
+                    Evidence(
+                        id=row["id"],
+                        type=EvidenceType(row["type"]),
+                        source_provider=row["source_provider"],
+                        service_resource=row["service_resource"],
+                        summary=row["summary"],
+                        data=json.loads(row["data"]),
+                        observed_at=datetime.fromisoformat(row["observed_at"]),
+                        collected_at=datetime.fromisoformat(row["collected_at"]),
+                    )
+                )
+            return items

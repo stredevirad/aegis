@@ -171,6 +171,18 @@ class MockTracesProvider(TracesProvider):
         return ProviderStatus(provider="mock-traces", health=HealthStatus.HEALTHY)
 
     def get_trace(self, trace_id: str) -> Evidence | None:
+        if trace_id in ("mock1", "mock_trace_123", "ev_trace_mock_1"):
+            now = datetime.now(timezone.utc)
+            return Evidence(
+                id="ev_trace_mock_1",
+                type=EvidenceType.TRACE,
+                source_provider="mock-traces",
+                service_resource="payment-api",
+                summary=f"Trace: {trace_id} (3 spans, 1500ms)",
+                observed_at=now,
+                collected_at=now,
+                data={"trace_id": trace_id, "spans": [{"service": "payment-api", "operation": "process_payment"}]},
+            )
         return None
 
     def get_related_traces(
