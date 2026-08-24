@@ -3,10 +3,15 @@
 This module evaluates whether a diagnosis produced by Aegis matches the
 known injected fault, validates evidence provenance and citations, and
 reports a structured evaluation result.
+
+Phase 3 Improvements:
+- Incident-leak detection: catches diagnoses that merely restate the incident description
+- Causal language requirement: CORRECT requires causal/explanatory content beyond symptoms
+- Evaluation metadata: tracks overlap ratios, causal terms, leak scores for analysis
 """
+import re
 from dataclasses import dataclass, field
 from enum import Enum
-import re
 from typing import Any
 
 
@@ -37,6 +42,10 @@ class RCAEvaluation:
     evidence_logs: int = 0
     evidence_traces: int = 0
     notes: str = ""
+    # Phase 3 evaluation metadata
+    incident_leak_ratio: float = 0.0
+    causal_terms_found: list[str] = field(default_factory=list)
+    novel_content_ratio: float = 0.0
 
 
 def _normalize_tokens(text: str) -> set[str]:
@@ -45,6 +54,73 @@ def _normalize_tokens(text: str) -> set[str]:
     tokens = re.findall(r"[a-zA-Z0-9]+", expanded.lower())
     # Also include combined variants without hyphens (e.g. productcatalog for product-catalog)
     return set(tokens)
+
+
+# Stop words that should be excluded from overlap analysis
+_STOP_WORDS = {
+    "the", "a", "an", "is", "was", "are", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "must", "to", "of", "in",
+    "for", "on", "with", "at", "by", "from", "as", "into", "through",
+    "during", "before", "after", "above", "below", "and", "but", "or",
+    "nor", "not", "so", "yet", "both", "either", "neither", "each",
+    "every", "all", "any", "few", "more", "most", "other", "some",
+    "such", "than", "too", "very", "just", "about", "up", "out",
+    "if", "then", "that", "this", "it", "its", "they", "them", "their",
+    "we", "our", "you", "your", "he", "she", "him", "her",
+}
+
+# Causal/explanatory terms that indicate genuine root cause analysis
+_CAUSAL_TERMS = [
+    "caused by", "due to", "because", "root cause", "resulting from",
+    "triggered by", "originated from", "stems from", "attributed to",
+    "misconfiguration", "misconfigured", "configuration change",
+    "feature flag", "flag enabled", "flag set", "flag toggled",
+    "deployment", "deployed", "rollback", "release",
+    "memory leak", "resource exhaustion", "connection pool",
+    "deadlock", "race condition", "circular dependency",
+    "certificate expir", "dns resolution", "network partition",
+    "out of memory", "disk full", "cpu throttl",
+    "upstream failure", "downstream failure", "cascading failure",
+    "crash loop", "oom kill", "segfault",
+]
+
+
+def _compute_incident_leak(
+    diagnosis: str,
+    incident_title: str,
+    incident_description: str,
+) -> tuple[float, float]:
+    """Compute how much of the diagnosis merely restates the incident description.
+
+    Returns:
+        (leak_ratio, novel_ratio):
+            leak_ratio: fraction of diagnosis content tokens that overlap with incident text
+            novel_ratio: fraction of diagnosis content tokens NOT in incident text
+    """
+    diag_tokens = _normalize_tokens(diagnosis) - _STOP_WORDS
+    incident_tokens = (
+        _normalize_tokens(incident_title) | _normalize_tokens(incident_description)
+    ) - _STOP_WORDS
+
+    if not diag_tokens:
+        return 1.0, 0.0
+
+    overlap = diag_tokens & incident_tokens
+    leak_ratio = len(overlap) / len(diag_tokens)
+    novel_ratio = 1.0 - leak_ratio
+
+    return leak_ratio, novel_ratio
+
+
+def _find_causal_terms(diagnosis: str) -> list[str]:
+    """Find causal/explanatory terms in the diagnosis text."""
+    diag_lower = diagnosis.lower()
+    found = []
+    for term in _CAUSAL_TERMS:
+        if term in diag_lower:
+            found.append(term)
+    return found
 
 
 def evaluate_rca(
@@ -56,15 +132,18 @@ def evaluate_rca(
     supporting_evidence_ids: list[str] | None = None,
     available_evidence: list[Any] | None = None,
     available_evidence_ids: set[str] | None = None,
+    incident_title: str = "",
+    incident_description: str = "",
 ) -> RCAEvaluation:
     """Evaluate whether the model diagnosis matches the ground truth and validates evidence.
 
-    Evaluation checks:
+    Evaluation checks (Phase 3 strengthened):
     1. Diagnosis non-empty.
     2. Classification compatibility (INSUFFICIENT -> INSUFFICIENT_EVIDENCE, NO_ANOMALY during fault -> INCORRECT).
     3. Valid supporting Evidence IDs that actually exist in collected Incident.evidence.
-    4. At least one relevant telemetry modality supports the diagnosis.
-    5. Component and fault mechanism alignment with ground truth.
+    4. Incident-leak detection: diagnoses that merely restate the incident description are downgraded.
+    5. Causal language requirement: CORRECT requires explanatory content beyond symptom description.
+    6. Component and fault mechanism alignment with ground truth.
     """
     notes_list: list[str] = []
     
@@ -142,7 +221,29 @@ def evaluate_rca(
     else:
         notes_list.append("Note: No explicit supporting Evidence IDs were cited.")
 
-    # 4. Component and fault mechanism alignment
+    # 4. Incident-leak detection (Phase 3)
+    leak_ratio = 0.0
+    novel_ratio = 1.0
+    if incident_title or incident_description:
+        leak_ratio, novel_ratio = _compute_incident_leak(
+            model_diagnosis, incident_title, incident_description
+        )
+        if leak_ratio >= 0.8:
+            notes_list.append(
+                f"Incident-leak: {leak_ratio:.0%} of diagnosis tokens overlap with incident description. "
+                "Diagnosis appears to restate the symptom rather than identify a root cause."
+            )
+        elif leak_ratio >= 0.5:
+            notes_list.append(
+                f"Partial incident-leak: {leak_ratio:.0%} of diagnosis content overlaps with incident description."
+            )
+
+    # 5. Causal language detection (Phase 3)
+    causal_terms = _find_causal_terms(model_diagnosis)
+    if causal_terms:
+        notes_list.append(f"Causal terms found: {causal_terms}")
+
+    # 6. Component and fault mechanism alignment
     diag_tokens = _normalize_tokens(model_diagnosis)
     gt_tokens = _normalize_tokens(ground_truth)
     target_tokens = _normalize_tokens(target_service) if target_service else set()
@@ -181,13 +282,25 @@ def evaluate_rca(
     specific_matches = sum(1 for kw in specific_keywords if kw in diag_tokens or kw in model_diagnosis.lower())
     specific_ratio = specific_matches / max(len(specific_keywords), 1)
 
+    # Phase 3: Determine result with strengthened criteria
     if component_matched and has_failure_concept:
-        if specific_ratio >= 0.4 or "feature flag" in model_diagnosis.lower() or "flag" in diag_tokens:
+        # Check for CORRECT: requires either specific root cause alignment OR causal explanation
+        has_causal_depth = bool(causal_terms) or specific_ratio >= 0.4 or "feature flag" in model_diagnosis.lower() or "flag" in diag_tokens
+        
+        # Phase 3: High incident-leak downgrades the result
+        if leak_ratio >= 0.8:
+            # Diagnosis is mostly restating the incident — cannot be CORRECT
+            rca_res = RCAResult.PARTIALLY_CORRECT
+            notes_list.append(
+                f"Downgraded from potential CORRECT: diagnosis mostly restates incident description "
+                f"(leak={leak_ratio:.0%})."
+            )
+        elif has_causal_depth:
             rca_res = RCAResult.CORRECT
-            notes_list.append(f"Correct: Accurately identified affected component ({target_service or 'target'}) and fault mechanism.")
+            notes_list.append(f"Correct: Identified affected component ({target_service or 'target'}) with causal explanation.")
         else:
             rca_res = RCAResult.PARTIALLY_CORRECT
-            notes_list.append(f"Partially Correct: Accurately identified affected component ({target_service or 'target'}) and failure symptom.")
+            notes_list.append(f"Partially Correct: Identified affected component ({target_service or 'target'}) and failure symptom, but lacks causal explanation.")
     elif component_matched:
         rca_res = RCAResult.PARTIALLY_CORRECT
         notes_list.append(f"Partially Correct: Identified affected service ({target_service or 'target'}).")
@@ -203,6 +316,9 @@ def evaluate_rca(
         rca_result=rca_res,
         supporting_evidence_ids=valid_ids if valid_ids else (supporting_evidence_ids or []),
         valid_evidence_count=len(valid_ids),
-        modalities_supported=sorted(list(modalities_found)),
+        modalities_supported=sorted(modalities_found),
         notes=" ".join(notes_list),
+        incident_leak_ratio=leak_ratio,
+        causal_terms_found=causal_terms,
+        novel_content_ratio=novel_ratio,
     )

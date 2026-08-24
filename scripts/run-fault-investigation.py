@@ -182,16 +182,30 @@ def collect_telemetry_signature(config: dict, target_service: str, affected_serv
     return signature
 
 
-def run_investigation(scenario_path: str) -> dict[str, Any]:
-    """Run an Aegis investigation against the live telemetry environment."""
-    import os
+import os
+
+
+def run_investigation(
+    scenario_path: str,
+    evidence_strategy: str = "generic",
+    use_summarizer: bool = True,
+) -> dict:
+    """Run Aegis demo with fault scenario."""
     env = os.environ.copy()
     env["AEGIS_INVESTIGATION_MODE"] = "fast"
     env["OLLAMA_MODEL"] = "qwen3.5:4b"
     env["OLLAMA_THINK"] = "false"
 
-    cmd = [sys.executable, "-m", "src.investigation.demo", "--live-telemetry", "--fault-scenario", scenario_path]
-    log("Running Aegis investigation...")
+    cmd = [
+        sys.executable, "-m", "src.investigation.demo",
+        "--live-telemetry",
+        "--fault-scenario", scenario_path,
+        "--evidence-strategy", evidence_strategy,
+    ]
+    if not use_summarizer:
+        cmd.append("--no-summarizer")
+
+    log(f"Running Aegis investigation (strategy: {evidence_strategy}, summarizer: {use_summarizer})...")
     start = time.time()
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=900, env=env)
     duration = time.time() - start
@@ -235,6 +249,10 @@ def main() -> None:
     parser.add_argument("--scenario", type=str, default="config/scenarios/product-catalog-failure.yaml",
                         help="Path to scenario YAML")
     parser.add_argument("--runs", type=int, default=2, help="Number of investigation runs")
+    parser.add_argument("--evidence-strategy", type=str, default="generic", choices=["generic", "error_focused"],
+                        help="Initial evidence strategy (generic or error_focused)")
+    parser.add_argument("--no-summarizer", action="store_true",
+                        help="Disable structured evidence summarizer (send raw bounded evidence)")
     args = parser.parse_args()
 
     scenario_path = Path(args.scenario)
@@ -331,7 +349,11 @@ def main() -> None:
         log(f"Step 10.{run_num}: Running investigation (run {run_num}/{args.runs})...")
         log(f"{'='*50}")
 
-        inv_result = run_investigation(str(scenario_path))
+        inv_result = run_investigation(
+            str(scenario_path),
+            evidence_strategy=args.evidence_strategy,
+            use_summarizer=not args.no_summarizer,
+        )
         parsed = parse_investigation_output(inv_result["output"])
         incident_id = parsed.get("incident_id")
 
@@ -354,6 +376,8 @@ def main() -> None:
             target_service=target_service,
             supporting_evidence_ids=cited_evidence_ids,
             available_evidence=loaded_incident.evidence if loaded_incident else None,
+            incident_title=scenario.get("incident_title", ""),
+            incident_description=scenario.get("incident_description", ""),
         )
 
         run_data = {
@@ -369,6 +393,9 @@ def main() -> None:
             "rca_result": rca_eval.rca_result.value,
             "valid_evidence_count": rca_eval.valid_evidence_count,
             "modalities_supported": rca_eval.modalities_supported,
+            "incident_leak_ratio": rca_eval.incident_leak_ratio,
+            "causal_terms": rca_eval.causal_terms_found,
+            "novel_content_ratio": rca_eval.novel_content_ratio,
             "notes": rca_eval.notes,
         }
         run_results.append(run_data)
@@ -381,6 +408,9 @@ def main() -> None:
         log(f"  RCA Result    : {rca_eval.rca_result.value}")
         log(f"  Evidence Valid: {rca_eval.valid_evidence_count} items")
         log(f"  Modalities    : {rca_eval.modalities_supported}")
+        log(f"  Incident Leak : {rca_eval.incident_leak_ratio:.0%}")
+        log(f"  Novel Content : {rca_eval.novel_content_ratio:.0%}")
+        log(f"  Causal Terms  : {rca_eval.causal_terms_found or 'None'}")
         log(f"  Duration      : {inv_result['duration']:.1f}s")
         if rca_eval.notes:
             log(f"  Notes         : {rca_eval.notes}")

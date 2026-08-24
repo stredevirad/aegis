@@ -3,7 +3,6 @@ import os
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any
 
 from src.domain import (
     DiagnosisClassification,
@@ -37,6 +36,8 @@ class InvestigationEngine:
         max_tool_calls: int = int(os.environ.get("MAXIMUM_TOOL_CALLS", "12")),
         max_duration_seconds: int = int(os.environ.get("MAXIMUM_INVESTIGATION_DURATION_SECONDS", "900")),
         investigation_mode: str = os.environ.get("AEGIS_INVESTIGATION_MODE", "fast"),
+        evidence_strategy: str = os.environ.get("AEGIS_EVIDENCE_STRATEGY", "generic"),
+        use_summarizer: bool = os.environ.get("AEGIS_USE_SUMMARIZER", "true").lower() == "true",
     ):
         self.incident = incident
         self.llm_provider = llm_provider
@@ -47,6 +48,8 @@ class InvestigationEngine:
         self.max_tool_calls = max_tool_calls
         self.max_duration_seconds = max_duration_seconds
         self.investigation_mode = investigation_mode.lower()
+        self.evidence_strategy = evidence_strategy.lower()
+        self.use_summarizer = use_summarizer
 
         self.messages: list[LLMMessage] = []
         self.turn_count = 0
@@ -264,18 +267,27 @@ class InvestigationEngine:
             return f"Error: {error_msg}"
 
     def _fast_mode_collect_evidence(self) -> None:
-        evidence_bundle = []
         target = self.incident.affected_service or "unknown-service"
         
         from src.domain.models import ToolResult
 
-        # Dispatch all three modalities with error handling
+        # Select initial tool calls based on evidence strategy
+        if self.evidence_strategy == "error_focused":
+            initial_calls = [
+                ("metrics", ToolCall(id="initial_m", name="query_error_metrics", arguments={"service_name": target})),
+                ("logs", ToolCall(id="initial_l", name="search_error_logs", arguments={"service_name": target})),
+                ("traces", ToolCall(id="initial_t", name="search_error_traces", arguments={"service_name": target})),
+            ]
+        else:
+            initial_calls = [
+                ("metrics", ToolCall(id="initial_m", name="query_metrics", arguments={"query": target})),
+                ("logs", ToolCall(id="initial_l", name="search_logs", arguments={"query": target})),
+                ("traces", ToolCall(id="initial_t", name="search_traces", arguments={"service_name": target})),
+            ]
+
+        # Dispatch modalities with error handling
         modality_results = {}
-        for label, tc in [
-            ("metrics", ToolCall(id="initial_m", name="query_metrics", arguments={"query": target})),
-            ("logs", ToolCall(id="initial_l", name="search_logs", arguments={"query": target})),
-            ("traces", ToolCall(id="initial_t", name="search_traces", arguments={"service_name": target})),
-        ]:
+        for label, tc in initial_calls:
             res = self._safe_dispatch(tc)
             modality_results[label] = res
             self.tool_call_count += 1
@@ -291,18 +303,25 @@ class InvestigationEngine:
                         
         self.repository.save_incident(self.incident)
 
-        def _bound_summary(summary: Any) -> Any:
-            if isinstance(summary, list):
-                return summary[:2]  # Keep only 2 items for the initial context
-            return summary
-
-        for label in ("metrics", "logs", "traces"):
-            res = modality_results[label]
-            if isinstance(res, ToolResult):
-                summary = _bound_summary(res.summary)
-            else:
-                summary = res
-            evidence_bundle.append(f"--- Initial {label.title()} ---\n{json.dumps(summary, default=str)}")
+        # Format initial evidence bundle based on summarizer configuration
+        if self.use_summarizer:
+            from src.investigation.evidence_summarizer import (
+                format_evidence_summary_for_llm,
+                summarize_evidence,
+            )
+            structured_summary = summarize_evidence(self.incident.evidence)
+            formatted_summary = format_evidence_summary_for_llm(structured_summary)
+            bundle_text = f"EVIDENCE DIAGNOSTIC SUMMARY:\n{formatted_summary}"
+        else:
+            evidence_bundle = []
+            for label in ("metrics", "logs", "traces"):
+                res = modality_results[label]
+                if isinstance(res, ToolResult):
+                    summary = res.summary[:2] if isinstance(res.summary, list) else res.summary
+                else:
+                    summary = res
+                evidence_bundle.append(f"--- Initial {label.title()} ---\n{json.dumps(summary, default=str)}")
+            bundle_text = "INITIAL EVIDENCE BUNDLE:\n" + "\n".join(evidence_bundle)
 
         # Note any provider errors to the LLM
         provider_note = ""
@@ -314,13 +333,13 @@ class InvestigationEngine:
                 role=MessageRole.USER,
                 content=f"Incident: {self.incident.title}\nDescription: {self.incident.description}\n"
                         f"Affected Service: {self.incident.affected_service or 'Unknown'}\n\n"
-                        "INITIAL EVIDENCE BUNDLE:\n" + "\n".join(evidence_bundle) + provider_note + "\n\n"
-                        "Based ONLY on this initial evidence, provide at least two competing hypotheses using the format 'HYPOTHESIS: <description>'.\n"
+                        f"{bundle_text}{provider_note}\n\n"
+                        "Based ONLY on this evidence, provide at least two competing hypotheses using the format 'HYPOTHESIS: <description>'.\n"
                         "If the evidence shows no significant anomaly, one hypothesis MUST be 'HYPOTHESIS: No significant anomaly detected.'\n"
                         "You MUST also return a structured tool call for verification. Identify which missing evidence would distinguish the hypotheses, and make up to 2 tool calls to request it."
             )
         )
-        self._record_event("INITIAL_EVIDENCE_COLLECTED", f"Gathered metrics, logs, and traces for {target}.")
+        self._record_event("INITIAL_EVIDENCE_COLLECTED", f"Gathered initial evidence for {target} using {self.evidence_strategy} strategy.")
         self._transition_to(InvestigationStatus.FORMING_HYPOTHESES)
 
     def _fast_mode_execute_verification(self, tool_calls: list[ToolCall]) -> None:

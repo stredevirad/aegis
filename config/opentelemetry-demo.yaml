@@ -7,9 +7,9 @@ telemetry:
     endpoint: http://localhost:9090
   logs:
     type: opensearch
-    endpoint: http://localhost:56695
+    endpoint: http://localhost:61093
   traces:
     type: jaeger
-    endpoint: http://localhost:56020
+    endpoint: http://localhost:61092
   topology:
     type: static

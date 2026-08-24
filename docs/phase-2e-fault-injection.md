@@ -52,7 +52,7 @@ Two consecutive end-to-end investigation runs were executed using the local `qwe
 - **Remediation Recommendation**:
   > *"Investigate root cause for `product-catalog` status UNKNOWN — Unknown upstream status combined with observed 500 errors and slow traces suggests the service is failing or returning unexpected responses, directly impacting frontend requests."*
 - **Supporting Evidence Citation**: 5 specific trace evidence IDs cited and validated (`["ev_trace_fb937175bea0fc79df072049600a81c0", "ev_trace_334d3f67b18344038a4c644957aa76cc", ...]`)
-- **RCA Result**: **`CORRECT`** (Accurately identified affected component `product-catalog` and failure mechanism)
+- **RCA Result**: **`PARTIALLY_CORRECT` (Strengthened Phase 3 Evaluator)**: Accurately identified affected upstream component `product-catalog` and correlated with 500 error logs and trace timeouts, but did not pinpoint the exact `productCatalogFailure` feature flag mechanism.
 
 ---
 
@@ -72,13 +72,15 @@ Two consecutive end-to-end investigation runs were executed using the local `qwe
 - **Remediation Recommendation**:
   > *"Review backend application logs and verify database connectivity (The CloudTrail log explicitly records a 500 Internal Server Error response from the `GET /api/products/...` request, indicating a server-side failure rather than a client error or network timeout.)"*
 - **Supporting Evidence Citation**: 1 specific log evidence ID cited and validated
-- **RCA Result**: **`PARTIALLY_CORRECT`** (Accurately identified affected product backend component and HTTP 500 symptom)
+- **RCA Result**: **`PARTIALLY_CORRECT` (Symptom-Level Alignment)**: Identified the backend product endpoint and HTTP 500 symptom, with high incident-leak overlap with the initial incident description.
 
 ---
 
-## Evaluation Summary & Consistency
+## Evaluation Summary & Honest Retroactive Assessment (Phase 3.1)
 
 - **Total Runs**: 2
-- **Consistency**: **2/2 runs produced CORRECT or PARTIALLY_CORRECT diagnoses**
-- **Evidence Linking**: Verified precise evidence citation (no blanket evidence dumping)
+- **Affected Component Identification**: **2/2 runs correctly localized the fault to `product-catalog` / backend product API**.
+- **Root Cause Mechanism**: Neither run specifically deduced the root mechanism ("flagd feature flag toggled on"), instead identifying upstream failure/status unknown and 500 errors.
+- **Evidence Linking**: Verified precise evidence citation (5 trace IDs in Run 1, 1 log ID in Run 2).
+- **Evaluator Overhaul**: Under the strengthened Phase 3.1 evaluator (which tests for incident-leak and requires causal mechanism depth), these runs are classified as **PARTIALLY_CORRECT** (accurate component localization and symptom correlation) rather than full causal root-cause identification.
 - **Fault Recovery**: Automatic recovery via `inject-fault.py --recover` verified healthy across Application (`200 OK`), Prometheus (`200 OK`), OpenSearch (`200 OK`), and Jaeger (`200 OK`).

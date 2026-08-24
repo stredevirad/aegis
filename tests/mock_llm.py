@@ -25,7 +25,7 @@ class MockLLMProvider(LLMProvider):
         
         last_msg = request.messages[-1].content if request.messages else ""
         
-        if "INITIAL EVIDENCE BUNDLE:" in last_msg:
+        if "INITIAL EVIDENCE BUNDLE:" in last_msg or "EVIDENCE DIAGNOSTIC SUMMARY:" in last_msg:
             return LLMResponse(
                 content="HYPOTHESIS: Downstream DB latency caused payment-api to fail.\nHYPOTHESIS: Payment API is simply overloaded.",
                 tool_calls=[ToolCall(id="mock_verif", name="search_logs", arguments={"query": "orders-service errors"})],

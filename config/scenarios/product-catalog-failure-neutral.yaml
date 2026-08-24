@@ -1,0 +1,15 @@
+scenario_id: scenario_product_catalog_failure_neutral
+fault_type: feature_flag
+flag_name: productCatalogFailure
+flag_value: "on"
+target: product-catalog
+affected_service: frontend
+incident_title: "Service Degradation Anomaly Detected"
+incident_description: "Automated monitoring detected elevated HTTP 500 error rates and increased request latency across user-facing endpoints."
+expected_impact: "Product catalog service failures causing HTTP 500 errors on product endpoints and degraded user shopping experience"
+expected_root_cause: "productCatalogFailure feature flag enabled causing product catalog service failures"
+expected_telemetry_signatures:
+  metrics: "elevated HTTP 500 error count and rate on frontend and product catalog endpoints"
+  logs: "error logs and gRPC status errors from product-catalog and frontend services"
+  traces: "failed trace spans with error tags on product-catalog and frontend services"
+recovery_procedure: "Set productCatalogFailure defaultVariant back to 'off' in demo.flagd.json"

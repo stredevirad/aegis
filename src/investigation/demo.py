@@ -22,9 +22,15 @@ from src.persistence.repository import SQLiteRepository
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def run_demo(use_mock_llm: bool = False, live_telemetry: bool = False, fault_scenario: str | None = None) -> None:
+def run_demo(
+    use_mock_llm: bool = False,
+    live_telemetry: bool = False,
+    fault_scenario: str | None = None,
+    evidence_strategy: str = "generic",
+    use_summarizer: bool = True,
+) -> None:
     print("=" * 60)
-    print("Aegis Phase 2 - End-to-End Investigation")
+    print("Aegis Phase 2/3 - End-to-End Investigation")
     print("=" * 60)
 
     # 1. Initialize Persistence
@@ -165,12 +171,14 @@ def run_demo(use_mock_llm: bool = False, live_telemetry: bool = False, fault_sce
             sys.exit(1)
 
     # 7. Run Investigation
-    print("[7] Starting Investigation Engine...\n")
+    print(f"[7] Starting Investigation Engine (strategy: {evidence_strategy}, summarizer: {use_summarizer})...\n")
     engine = InvestigationEngine(
         incident=incident,
         llm_provider=llm_provider,
         tool_dispatcher=tool_dispatcher,
-        repository=repository
+        repository=repository,
+        evidence_strategy=evidence_strategy,
+        use_summarizer=use_summarizer,
     )
 
     engine.run()
@@ -224,10 +232,20 @@ def run_demo(use_mock_llm: bool = False, live_telemetry: bool = False, fault_sce
 if __name__ == "__main__":
     use_mock = "--mock-llm" in sys.argv
     live_telemetry = "--live-telemetry" in sys.argv
+    use_summarizer = "--no-summarizer" not in sys.argv
     
+    evidence_strategy = "generic"
     fault_scenario = None
     for i, arg in enumerate(sys.argv):
         if arg == "--fault-scenario" and i + 1 < len(sys.argv):
             fault_scenario = sys.argv[i + 1]
+        elif arg == "--evidence-strategy" and i + 1 < len(sys.argv):
+            evidence_strategy = sys.argv[i + 1]
     
-    run_demo(use_mock_llm=use_mock, live_telemetry=live_telemetry, fault_scenario=fault_scenario)
+    run_demo(
+        use_mock_llm=use_mock,
+        live_telemetry=live_telemetry,
+        fault_scenario=fault_scenario,
+        evidence_strategy=evidence_strategy,
+        use_summarizer=use_summarizer,
+    )

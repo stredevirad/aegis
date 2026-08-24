@@ -37,6 +37,20 @@ class GetTraceArgs(BaseModel):
 class SearchTracesArgs(BaseModel):
     service_name: str = Field(..., max_length=100)
 
+
+# Phase 3 error-focused tool argument models
+class QueryErrorMetricsArgs(BaseModel):
+    service_name: str = Field(..., max_length=100)
+
+
+class SearchErrorLogsArgs(BaseModel):
+    service_name: str = Field(..., max_length=100)
+
+
+class SearchErrorTracesArgs(BaseModel):
+    service_name: str = Field(..., max_length=100)
+
+
 class ToolDispatcher:
     def __init__(
         self,
@@ -58,10 +72,14 @@ class ToolDispatcher:
             "query_metrics": (self._query_metrics, QueryMetricsArgs),
             "search_logs": (self._search_logs, SearchLogsArgs),
             "get_service_dependencies": (self._get_service_dependencies, GetServiceDependenciesArgs),
+            # Phase 3 error-focused tools
+            "query_error_metrics": (self._query_error_metrics, QueryErrorMetricsArgs),
+            "search_error_logs": (self._search_error_logs, SearchErrorLogsArgs),
         }
         if self.traces_provider:
             self.registry["search_traces"] = (self._search_traces, SearchTracesArgs)
             self.registry["get_trace"] = (self._get_trace, GetTraceArgs)
+            self.registry["search_error_traces"] = (self._search_error_traces, SearchErrorTracesArgs)
 
     def get_tool_definitions(self) -> list[ToolDefinition]:
         defs = [
@@ -106,6 +124,23 @@ class ToolDispatcher:
                 },
                 required=["service_name"],
             ),
+            # Phase 3 error-focused tools
+            ToolDefinition(
+                name="query_error_metrics",
+                description="Query error-specific metrics for a service: HTTP 5xx error rates, error counts, and failed request ratios.",
+                parameters={
+                    "service_name": {"type": "string", "description": "The name of the service to check for errors"}
+                },
+                required=["service_name"],
+            ),
+            ToolDefinition(
+                name="search_error_logs",
+                description="Search specifically for ERROR and WARNING severity logs from a service, including exceptions and failure messages.",
+                parameters={
+                    "service_name": {"type": "string", "description": "The name of the service to search error logs for"}
+                },
+                required=["service_name"],
+            ),
         ]
         
         if self.traces_provider:
@@ -125,7 +160,15 @@ class ToolDispatcher:
                         "trace_id": {"type": "string", "description": "The ID of the trace"}
                     },
                     required=["trace_id"]
-                )
+                ),
+                ToolDefinition(
+                    name="search_error_traces",
+                    description="Search for traces with error status codes or failure tags from a specific service.",
+                    parameters={
+                        "service_name": {"type": "string", "description": "The name of the service to search for error traces"}
+                    },
+                    required=["service_name"],
+                ),
             ])
             
         return defs
@@ -185,6 +228,125 @@ class ToolDispatcher:
         if not ev:
             return ToolResult(summary={"error": f"Trace {trace_id} not found"})
         return ToolResult(evidence=[ev], summary=self._summarize_evidence([ev]))
+
+    # ---- Phase 3 error-focused tool implementations ----
+
+    def _query_error_metrics(self, service_name: str) -> ToolResult:
+        """Query specifically for error-rate metrics for a service.
+        
+        Constructs PromQL that targets HTTP 5xx responses rather than
+        generic request counts. Falls back to the generic query if the
+        provider doesn't support error-specific queries.
+        """
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(minutes=15)
+        # Construct error-specific PromQL
+        error_query = (
+            f'http_server_request_duration_seconds_count'
+            f'{{service_name=~".*{service_name}.*",http_response_status_code=~"5.."}}'
+        )
+        evidence_list = self.metrics_provider.query_metrics(error_query, start_time, end_time)
+        
+        # Also query total for context (so the LLM can compute error rate)
+        total_query = (
+            f'http_server_request_duration_seconds_count'
+            f'{{service_name=~".*{service_name}.*"}}'
+        )
+        total_evidence = self.metrics_provider.query_metrics(total_query, start_time, end_time)
+        
+        # Combine: error metrics first, then total for context
+        all_evidence = evidence_list + total_evidence
+        
+        # Build a diagnostic summary
+        summary = {
+            "tool": "query_error_metrics",
+            "service": service_name,
+            "error_series_count": len(evidence_list),
+            "total_series_count": len(total_evidence),
+            "error_details": self._summarize_evidence(evidence_list),
+            "total_details": self._summarize_evidence(total_evidence[:3]),  # Bounded
+        }
+        return ToolResult(evidence=all_evidence, summary=summary)
+
+    def _search_error_logs(self, service_name: str) -> ToolResult:
+        """Search specifically for ERROR/WARNING severity logs from a service.
+        
+        Pre-filters the query for error-related terms and severity levels.
+        """
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(minutes=15)
+        error_query = f"({service_name}) AND (ERROR OR error OR Exception OR fail OR 500 OR timeout OR WARN)"
+        evidence_list = self.logs_provider.search_logs(error_query, start_time, end_time)
+        
+        # Build diagnostic summary with error-specific information
+        error_count = len(evidence_list)
+        severity_counts: dict[str, int] = {}
+        sample_messages: list[str] = []
+        
+        for e in evidence_list[:20]:  # Inspect first 20
+            data = e.data if isinstance(e.data, dict) else {}
+            level = data.get("level", "UNKNOWN")
+            severity_counts[level] = severity_counts.get(level, 0) + 1
+            if len(sample_messages) < 3:
+                msg = data.get("message", e.summary)
+                if isinstance(msg, str) and msg:
+                    sample_messages.append(msg[:120])
+        
+        summary = {
+            "tool": "search_error_logs",
+            "service": service_name,
+            "total_error_logs": error_count,
+            "severity_breakdown": severity_counts,
+            "sample_error_messages": sample_messages,
+            "evidence_details": self._summarize_evidence(evidence_list[:5]),  # Bounded
+        }
+        return ToolResult(evidence=evidence_list, summary=summary)
+
+    def _search_error_traces(self, service_name: str) -> ToolResult:
+        """Search for traces with error status from a specific service.
+        
+        Fetches all recent traces and filters for those containing error tags.
+        """
+        if not self.traces_provider:
+            return ToolResult(summary={"error": "TracesProvider not configured"})
+        
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(minutes=15)
+        all_traces = self.traces_provider.get_related_traces(service_name, start_time, end_time)
+        
+        # Filter for error traces by checking evidence data and summary
+        error_traces = []
+        healthy_traces = []
+        for ev in all_traces:
+            summary_lower = (ev.summary or "").lower()
+            data = ev.data if isinstance(ev.data, dict) else {}
+            spans = data.get("spans", [])
+            
+            has_error = (
+                "error" in summary_lower or
+                "fail" in summary_lower or
+                "500" in summary_lower or
+                any(
+                    span.get("operation", "").lower() in ("error", "fail") or
+                    "error" in str(span.get("service", "")).lower()
+                    for span in spans
+                )
+            )
+            if has_error:
+                error_traces.append(ev)
+            else:
+                healthy_traces.append(ev)
+        
+        summary = {
+            "tool": "search_error_traces",
+            "service": service_name,
+            "total_traces": len(all_traces),
+            "error_traces": len(error_traces),
+            "healthy_traces": len(healthy_traces),
+            "error_trace_details": self._summarize_evidence(error_traces[:5]),  # Bounded
+        }
+        # Return all traces but surface error traces prominently in summary
+        return ToolResult(evidence=all_traces, summary=summary)
 
     def _summarize_evidence(self, evidence_list: list[Evidence]) -> list[dict[str, Any]]:
         """Compact representation of evidence for the LLM context window."""
