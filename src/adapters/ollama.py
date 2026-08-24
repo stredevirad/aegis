@@ -73,9 +73,8 @@ class OllamaProvider(LLMProvider):
         if request.messages:
             for msg in request.messages:
                 m: dict[str, Any] = {"role": msg.role.value, "content": msg.content}
-                if msg.tool_call_id and msg.role == MessageRole.TOOL:
-                    if msg.tool_name:
-                        m["tool_name"] = msg.tool_name
+                if msg.tool_call_id and msg.role == MessageRole.TOOL and msg.tool_name:
+                    m["tool_name"] = msg.tool_name
                 if msg.role == MessageRole.ASSISTANT and getattr(msg, 'tool_calls', None):
                     # In true Ollama format, an assistant message with tool calls needs a specific format
                     m["tool_calls"] = [
@@ -113,7 +112,7 @@ class OllamaProvider(LLMProvider):
                 payload["tools"].append(tool_def)
 
         try:
-            with httpx.Client(timeout=180.0) as client:
+            with httpx.Client(timeout=600.0) as client:
                 resp = client.post(f"{self.base_url}/api/chat", json=payload)
                 resp.raise_for_status()
                 data = resp.json()

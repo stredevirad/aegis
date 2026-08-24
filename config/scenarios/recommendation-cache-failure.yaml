@@ -1,0 +1,15 @@
+scenario_id: scenario_recommendation_cache_failure
+fault_type: feature_flag
+flag_name: recommendationCacheFailure
+flag_value: "on"
+target: recommendation
+affected_service: frontend
+incident_title: "Elevated Error Rate on Frontend"
+incident_description: "Users are experiencing increased errors when browsing product pages. Recommendation results are intermittently unavailable."
+expected_impact: "Recommendation service cache failures causing elevated error rates and degraded product page experience"
+expected_root_cause: "recommendationCacheFailure feature flag enabled causing recommendation service cache failures"
+expected_telemetry_signatures:
+  metrics: "elevated error rate and/or latency on recommendation service"
+  logs: "cache failure or error messages from recommendation service"
+  traces: "failed or slow spans involving recommendation service"
+recovery_procedure: "Set recommendationCacheFailure defaultVariant back to 'off' in demo.flagd.json"

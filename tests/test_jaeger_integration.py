@@ -1,9 +1,10 @@
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import httpx
 import pytest
 import yaml
-import httpx
-import time
 
 from src.adapters.jaeger import JaegerProvider
 from src.domain import EvidenceType, HealthStatus

@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from src.domain import (
+    DiagnosisClassification,
     Hypothesis,
     HypothesisStatus,
     Incident,
@@ -30,15 +31,18 @@ class SQLiteRepository:
                     status TEXT,
                     environment_profile TEXT,
                     scenario_id TEXT,
-                    affected_service TEXT
+                    affected_service TEXT,
+                    diagnosis TEXT,
+                    diagnosis_classification TEXT
                 )
             """
             )
             # Lightweight schema migration for existing databases
-            try:
-                conn.execute("ALTER TABLE incidents ADD COLUMN affected_service TEXT")
-            except sqlite3.OperationalError:
-                pass
+            for col in ("affected_service", "diagnosis", "diagnosis_classification"):
+                try:
+                    conn.execute(f"ALTER TABLE incidents ADD COLUMN {col} TEXT")
+                except sqlite3.OperationalError:
+                    pass
             
             conn.execute(
                 """
@@ -103,8 +107,8 @@ class SQLiteRepository:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO incidents 
-                (id, title, description, start_time, end_time, status, environment_profile, scenario_id, affected_service) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, title, description, start_time, end_time, status, environment_profile, scenario_id, affected_service, diagnosis, diagnosis_classification) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     incident.id,
@@ -116,6 +120,8 @@ class SQLiteRepository:
                     incident.environment_profile,
                     incident.scenario_id,
                     incident.affected_service,
+                    incident.diagnosis,
+                    incident.diagnosis_classification.value if incident.diagnosis_classification else None,
                 ),
             )
 
@@ -217,7 +223,9 @@ class SQLiteRepository:
                 status=InvestigationStatus(row["status"]),
                 environment_profile=row["environment_profile"],
                 scenario_id=row["scenario_id"],
-                affected_service=row["affected_service"]
+                affected_service=row["affected_service"],
+                diagnosis=row["diagnosis"],
+                diagnosis_classification=DiagnosisClassification(row["diagnosis_classification"]) if row["diagnosis_classification"] else None,
             )
             if row["end_time"]:
                 incident.end_time = datetime.fromisoformat(row["end_time"])
@@ -250,3 +258,18 @@ class SQLiteRepository:
                 ))
                 
             return incident
+
+    def load_recommendations(self, incident_id: str) -> list[RemediationRecommendation]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM recommendations WHERE incident_id = ?", (incident_id,))
+            recs = []
+            for row in cursor.fetchall():
+                recs.append(RemediationRecommendation(
+                    action=row["action"],
+                    reason=row["reason"],
+                    expected_impact=row["expected_impact"],
+                    risk_uncertainty=row["risk_uncertainty"],
+                    supporting_evidence_ids=json.loads(row["supporting_evidence_ids"])
+                ))
+            return recs

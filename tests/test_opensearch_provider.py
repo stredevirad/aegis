@@ -1,11 +1,12 @@
-import pytest
-import httpx
-from datetime import datetime, timezone, timedelta
-from typing import Any
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
+
+import httpx
+import pytest
 
 from src.adapters.opensearch import OpenSearchProvider
 from src.domain import EvidenceType, HealthStatus
+
 
 def test_opensearch_health_healthy() -> None:
     mock_client = MagicMock(spec=httpx.Client)

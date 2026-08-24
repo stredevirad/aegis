@@ -14,6 +14,7 @@ from src.domain import (
     ProviderStatus,
 )
 
+
 class OpenSearchProvider(LogsProvider):
     """Adapter for querying logs from an OpenSearch backend."""
 

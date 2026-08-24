@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
@@ -64,7 +64,7 @@ class ToolDispatcher:
             self.registry["get_trace"] = (self._get_trace, GetTraceArgs)
 
     def get_tool_definitions(self) -> list[ToolDefinition]:
-        return [
+        defs = [
             ToolDefinition(
                 name="get_service_health",
                 description="Get the high-level health status of a service (HEALTHY, DEGRADED, UNAVAILABLE).",
@@ -82,7 +82,7 @@ class ToolDispatcher:
                 parameters={
                     "query": {
                         "type": "string",
-                        "description": "A descriptive query specifying what to look for (e.g. 'payment-api latency')",
+                        "description": "A generic keyword or service name to query for metrics (e.g. 'frontend' or 'payment-api')",
                     }
                 },
                 required=["query"],
@@ -154,15 +154,15 @@ class ToolDispatcher:
         return ToolResult(summary={"service": service_name, "status": health.status.value})
 
     def _query_metrics(self, query: str) -> ToolResult:
-        # Use incident start time to current time as the bounded window
+        # Use a 15-minute lookback window
         end_time = datetime.now(timezone.utc)
-        start_time = self.incident_start_time
+        start_time = end_time - timedelta(minutes=15)
         evidence_list = self.metrics_provider.query_metrics(query, start_time, end_time)
         return ToolResult(evidence=evidence_list, summary=self._summarize_evidence(evidence_list))
 
     def _search_logs(self, query: str) -> ToolResult:
         end_time = datetime.now(timezone.utc)
-        start_time = self.incident_start_time
+        start_time = end_time - timedelta(minutes=15)
         evidence_list = self.logs_provider.search_logs(query, start_time, end_time)
         return ToolResult(evidence=evidence_list, summary=self._summarize_evidence(evidence_list))
 
@@ -174,7 +174,7 @@ class ToolDispatcher:
         if not self.traces_provider:
             return ToolResult(summary={"error": "TracesProvider not configured"})
         end_time = datetime.now(timezone.utc)
-        start_time = self.incident_start_time
+        start_time = end_time - timedelta(minutes=15)
         evidence_list = self.traces_provider.get_related_traces(service_name, start_time, end_time)
         return ToolResult(evidence=evidence_list, summary=self._summarize_evidence(evidence_list))
         
@@ -196,7 +196,6 @@ class ToolDispatcher:
                     "type": e.type.value,
                     "service": e.service_resource,
                     "summary": e.summary,
-                    "data": e.data,
                 }
             )
         return summary

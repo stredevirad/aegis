@@ -48,7 +48,7 @@ from .llm_models import (
     ToolDefinition as ToolDefinition,
 )
 from .models import (
-    ToolResult as ToolResult,
+    DiagnosisClassification as DiagnosisClassification,
 )
 from .models import (
     Evidence as Evidence,
@@ -79,4 +79,7 @@ from .models import (
 )
 from .models import (
     ServiceHealth as ServiceHealth,
+)
+from .models import (
+    ToolResult as ToolResult,
 )

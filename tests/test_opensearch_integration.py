@@ -1,10 +1,12 @@
-import pytest
-from datetime import datetime, timezone, timedelta
-import yaml
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
+import yaml
 
 from src.adapters.opensearch import OpenSearchProvider
 from src.domain import EvidenceType, HealthStatus
+
 
 def get_opensearch_endpoint() -> str | None:
     """Read the OTel Demo config to find the OpenSearch endpoint."""

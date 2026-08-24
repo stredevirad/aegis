@@ -28,6 +28,15 @@ class InvestigationStatus(str, Enum):
     FAILED = "FAILED"
 
 
+class DiagnosisClassification(str, Enum):
+    """Classification of the investigation diagnosis."""
+
+    CONFIRMED = "CONFIRMED"
+    PLAUSIBLE = "PLAUSIBLE"
+    NO_ANOMALY = "NO_ANOMALY"
+    INSUFFICIENT = "INSUFFICIENT"
+
+
 # --- Service Health ---
 
 
@@ -101,6 +110,8 @@ class Incident(BaseModel):
     available_capabilities: list[str] = Field(default_factory=list)
     scenario_id: str | None = None
     ground_truth_reference: str | None = None
+    diagnosis: str | None = None
+    diagnosis_classification: DiagnosisClassification | None = None
 
 
 # --- Provider Status ---

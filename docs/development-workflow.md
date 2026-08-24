@@ -8,6 +8,10 @@ Aegis will eventually rely on structured scripts to manage the local environment
 
 ## OpenTelemetry Demo (Fixture)
 * Do not modify the demo repository itself (treat as read-only). Use overlays, wrappers, or patches for fault injection.
+* The local environment is managed using powershell scripts:
+  * `scripts/start-otel-demo.ps1`: Starts the minimal footprint demo.
+  * `scripts/verify-otel-demo.ps1`: Verifies the endpoints and generates `config/opentelemetry-demo.yaml`.
+  * `scripts/stop-otel-demo.ps1`: Gracefully stops the environment.
 * Ensure integration verification makes actual requests to the local endpoints instead of assuming `docker compose up` worked.
 
 ## Agent Guidelines for Antigravity

@@ -1,67 +1,105 @@
-Write-Host "Verifying OpenTelemetry Demo environment..."
+$ErrorActionPreference = "Stop"
+$OtelDir = Join-Path -Path $PSScriptRoot -ChildPath "..\external\opentelemetry-demo"
 
-$allPass = $true
+Write-Host "============================================================"
+Write-Host "Verifying Minimal OpenTelemetry Demo"
+Write-Host "============================================================"
 
-function Verify-Endpoint {
-    param(
-        [string]$Name,
-        [string]$Url,
-        [scriptblock]$CheckBlock
-    )
-    Write-Host "Checking $Name ($Url)..." -NoNewline
-    try {
-        $response = Invoke-WebRequest -Uri $url -UseBasicParsing -ErrorAction Stop
-        if ($CheckBlock) {
-            $result = & $CheckBlock $response
-            if ($result) {
-                Write-Host " OK" -ForegroundColor Green
-            } else {
-                Write-Host " FAIL (Condition not met)" -ForegroundColor Red
-                $global:allPass = $false
-            }
-        } else {
-            if ($response.StatusCode -lt 400 -or $response.StatusCode -eq 404 -or $response.StatusCode -eq 405) {
-                Write-Host " OK ($($response.StatusCode))" -ForegroundColor Green
-            } else {
-                Write-Host " FAIL ($($response.StatusCode))" -ForegroundColor Red
-                $global:allPass = $false
-            }
-        }
-    } catch {
-        # OTel collector returns 405 Method Not Allowed on GET for /v1/metrics sometimes, which throws WebException in PS
-        if ($_.Exception.Response.StatusCode -eq 405 -or $_.Exception.Response.StatusCode -eq 404) {
-            Write-Host " OK ($($_.Exception.Response.StatusCode))" -ForegroundColor Green
-        } else {
-            Write-Host " FAIL ($($_.Exception.Message))" -ForegroundColor Red
-            $global:allPass = $false
-        }
+Push-Location $OtelDir
+try {
+    # Dynamically find ports since the demo uses some ephemeral host ports
+    $FrontendPort = (docker compose -f compose.yaml -f compose.observability.yaml port frontend 8080) -replace ".*:",""
+    $PrometheusPort = (docker compose -f compose.yaml -f compose.observability.yaml port prometheus 9090) -replace ".*:",""
+    $OpenSearchPort = (docker compose -f compose.yaml -f compose.observability.yaml port opensearch 9200) -replace ".*:",""
+    $JaegerPort = (docker compose -f compose.yaml -f compose.observability.yaml port jaeger 16686) -replace ".*:",""
+
+    # 1. Verify Application (Frontend)
+    Write-Host "1. Verifying Application (Frontend on port $FrontendPort)..."
+    $appResponse = Invoke-WebRequest -Uri "http://localhost:$FrontendPort" -UseBasicParsing
+    if ($appResponse.StatusCode -ne 200) {
+        Write-Error "Frontend is not reachable!"
     }
-}
+    Write-Host "   Frontend is UP."
 
-Verify-Endpoint -Name "Frontend Application" -Url "http://localhost:8080/"
-Verify-Endpoint -Name "OTel Collector" -Url "http://localhost:4318/v1/metrics"
+    # 2. Verify Prometheus (Metrics)
+    Write-Host "2. Verifying Prometheus (Metrics on port $PrometheusPort)..."
+    
+    # Check Backend Health
+    $promHealth = Invoke-WebRequest -Uri "http://localhost:$PrometheusPort/-/healthy" -UseBasicParsing -ErrorAction SilentlyContinue
+    if ($promHealth.StatusCode -ne 200) {
+        Write-Error "Prometheus backend health check failed!"
+    }
+    Write-Host "   [+] Backend Health: OK"
 
-Verify-Endpoint -Name "Prometheus Metrics" -Url "http://localhost:9090/api/v1/query?query=up" -CheckBlock {
-    param($r)
-    $content = $r.Content | ConvertFrom-Json
-    return ($content.status -eq "success" -and $content.data.result.Count -gt 0)
-}
+    # Check Actual Application Metric
+    $promResponse = Invoke-WebRequest -Uri "http://localhost:$PrometheusPort/api/v1/query?query=http_server_request_duration_seconds_count" -UseBasicParsing
+    $promJson = $promResponse.Content | ConvertFrom-Json
+    if ($promJson.status -ne "success" -or $promJson.data.result.Count -eq 0) {
+        Write-Error "Prometheus is not returning application metric data for http_server_request_duration_seconds_count!"
+    }
+    Write-Host "   [+] Application Telemetry: Found http_server_request_duration_seconds_count."
 
-Verify-Endpoint -Name "OpenSearch Logs" -Url "http://localhost:9200/otel-logs-*/_search?size=1" -CheckBlock {
-    param($r)
-    $content = $r.Content | ConvertFrom-Json
-    return ($content.hits.total.value -gt 0)
-}
+    # 3. Verify OpenSearch (Logs)
+    Write-Host "3. Verifying OpenSearch (Logs on port $OpenSearchPort)..."
+    
+    # Check Backend Health
+    $osHealth = Invoke-WebRequest -Uri "http://localhost:$OpenSearchPort/_cluster/health" -UseBasicParsing -ErrorAction SilentlyContinue
+    if ($osHealth.StatusCode -ne 200) {
+        Write-Error "OpenSearch backend health check failed!"
+    }
+    Write-Host "   [+] Backend Health: OK"
 
-Verify-Endpoint -Name "Jaeger Traces API" -Url "http://localhost:16686/api/services" -CheckBlock {
-    param($r)
-    $content = $r.Content | ConvertFrom-Json
-    return ($content.data -contains "frontend")
-}
+    # Check Actual Application Log
+    $osResponse = Invoke-WebRequest -Uri "http://localhost:$OpenSearchPort/otel-logs-*/_search?size=1" -UseBasicParsing
+    $osJson = $osResponse.Content | ConvertFrom-Json
+    if ($osJson.hits.total.value -eq 0) {
+        Write-Error "OpenSearch is not returning any application logs in otel-logs-*!"
+    }
+    Write-Host "   [+] Application Telemetry: Found logs in otel-logs-*."
 
-if (-not $allPass) {
-    Write-Host "Verification failed. Not all components are healthy or populated with telemetry." -ForegroundColor Red
-    exit 1
-} else {
-    Write-Host "Verification passed. Environment is healthy and telemetry is flowing." -ForegroundColor Green
+    # 4. Verify Jaeger (Traces)
+    Write-Host "4. Verifying Jaeger (Traces on port $JaegerPort)..."
+    
+    # Check Backend Health (via services endpoint)
+    $jaegerHealth = Invoke-WebRequest -Uri "http://localhost:$JaegerPort/jaeger/ui/api/services" -UseBasicParsing -ErrorAction SilentlyContinue
+    if ($jaegerHealth.StatusCode -ne 200) {
+        Write-Error "Jaeger backend health check failed!"
+    }
+    Write-Host "   [+] Backend Health: OK"
+
+    # Check Actual Application Trace
+    $jaegerResponse = Invoke-WebRequest -Uri "http://localhost:$JaegerPort/jaeger/ui/api/traces?service=frontend&limit=1" -UseBasicParsing
+    $jaegerJson = $jaegerResponse.Content | ConvertFrom-Json
+    if ($jaegerJson.data.Count -eq 0 -or -not $jaegerJson.data[0].traceID) {
+        Write-Error "Jaeger is not returning any actual traces for the frontend service!"
+    }
+    Write-Host "   [+] Application Telemetry: Found traces for frontend service."
+
+    Write-Host "============================================================"
+    Write-Host "Verification Complete: All endpoints reachable!"
+    Write-Host "============================================================"
+
+    # Export configuration automatically for convenience
+    $config = @"
+name: opentelemetry-demo
+environment:
+  type: docker
+telemetry:
+  metrics:
+    type: prometheus
+    endpoint: http://localhost:$PrometheusPort
+  logs:
+    type: opensearch
+    endpoint: http://localhost:$OpenSearchPort
+  traces:
+    type: jaeger
+    endpoint: http://localhost:$JaegerPort
+  topology:
+    type: static
+"@
+    $configPath = Join-Path -Path $PSScriptRoot -ChildPath "..\config\opentelemetry-demo.yaml"
+    Set-Content -Path $configPath -Value $config
+    Write-Host "Updated connection profile at $configPath"
+} finally {
+    Pop-Location
 }

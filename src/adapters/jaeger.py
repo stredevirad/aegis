@@ -1,4 +1,3 @@
-import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
@@ -61,7 +60,7 @@ class JaegerProvider(TracesProvider):
         start_microseconds = int(start_time.timestamp() * 1_000_000)
         end_microseconds = int(end_time.timestamp() * 1_000_000)
 
-        params = {
+        params: dict[str, str | int] = {
             "service": service_name,
             "start": start_microseconds,
             "end": end_microseconds,
@@ -120,24 +119,39 @@ class JaegerProvider(TracesProvider):
         start_time_us = root_span.get("startTime", 0)
         observed_at = datetime.fromtimestamp(start_time_us / 1_000_000, tz=timezone.utc)
         
-        # Summary
+        # Structure the data to be compact for deep inspection if needed
         operation = root_span.get("operationName", "unknown-operation")
         total_duration_ms = root_span.get("duration", 0) / 1000.0
         span_count = len(spans)
-        summary = f"Trace: {operation} ({span_count} spans, {total_duration_ms:.2f}ms)"
         
-        # Structure the data to be compact
         structured_spans = []
-        for span in spans[:50]: # Cap spans for LLM context
+        services_seen = set()
+        slowest_span = None
+        max_duration = -1
+        
+        for span in spans[:50]: # Cap spans for deep inspection
             span_process = span.get("processID")
             span_service = processes.get(span_process, {}).get("serviceName", "unknown") if span_process else "unknown"
+            services_seen.add(span_service)
             
+            dur = span.get("duration", 0) / 1000.0
             structured_spans.append({
                 "span_id": span.get("spanID"),
                 "operation": span.get("operationName"),
                 "service": span_service,
-                "duration_ms": span.get("duration", 0) / 1000.0,
+                "duration_ms": dur,
             })
+            if dur > max_duration:
+                max_duration = dur
+                slowest_span = structured_spans[-1]
+
+        # Detailed but compact summary for the LLM
+        slowest_info = f"{slowest_span['service']}::{slowest_span['operation']} ({slowest_span['duration_ms']:.2f}ms)" if slowest_span else "none"
+        summary = (
+            f"Trace: {operation} | Root: {service_name} | Duration: {total_duration_ms:.2f}ms\n"
+            f"Spans: {span_count} | Services: {', '.join(list(services_seen)[:5])}\n"
+            f"Slowest: {slowest_info}"
+        )
 
         evidence_id = f"ev_trace_{trace_id}"
         return Evidence(

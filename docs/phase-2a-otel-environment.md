@@ -1,79 +1,80 @@
 # Phase 2A — OpenTelemetry Environment
 
 ## Purpose
-Establish a lightweight, reproducible OpenTelemetry environment using the official upstream `opentelemetry-demo` fixture. This environment provides the real telemetry backends (metrics, logs, traces) required to build Aegis telemetry adapters in Phase 2B, without introducing heavyweight cloud infrastructure or redesigning Aegis Phase 1 core logic.
+This document describes the external OpenTelemetry Demo environment used as a realistic telemetry fixture for Aegis development. Phase 2A focuses solely on deploying, verifying, and documenting this environment without coupling it to the core Investigation Engine.
 
 ## Fixture
-The official OpenTelemetry Demo located in `external/opentelemetry-demo/`.
+- **Location**: `external/opentelemetry-demo/`
+- **Configuration**: Minimal deployment with observability stack overlay.
 
 ## Current Upstream Revision
-- Git Commit: `2e05c45b85b985a691cc75082c234e8d6ac0b2e9`
+- **Target**: `external/opentelemetry-demo` (Currently cloned locally)
+- **Compose Files**: `compose.yaml` (core services) and `compose.observability.yaml` (telemetry backends)
+- **Default Image Version**: `3.0.0` (as per `.env`)
 
 ## Deployment
-Deployed using the official core minimal footprint and the observability profile.
-Command used:
-```bash
+The environment is brought up using:
+```powershell
 docker compose -f compose.yaml -f compose.observability.yaml up -d
 ```
 
 ## Application
-- **Name**: Frontend Proxy / Frontend
-- **Endpoint**: `http://localhost:8080/`
-- **Health**: OK (Verified via HTTP GET)
+- **Name**: Frontend
+- **Host Endpoint**: `http://localhost:<ephemeral_port>` (Resolved dynamically by `verify-otel-demo.ps1`)
+- **Health**: OK (Returns HTTP 200)
 
 ## Collector
-- **Service**: `otel-collector`
-- **Endpoint**: `http://localhost:4318/v1/metrics`
-- **Health**: OK (Verified via HTTP 405 response on GET)
-- **Telemetry Path**: Application -> OTel Collector -> Jaeger (Traces), Prometheus (Metrics), OpenSearch (Logs).
+- **Service**: `otel-collector` (OpenTelemetry Collector Contrib)
+- **Endpoint**: Configured internally via `OTEL_COLLECTOR_HOST` in the Docker network.
+- **Health**: OK
+- **Telemetry Path**: The collector receives data via OTLP and exports to Prometheus, OpenSearch, and Jaeger.
 
 ## Metrics
 - **Backend**: Prometheus
-- **Endpoint**: `http://localhost:9090`
-- **Health**: OK
-- **Actual Verification**: `http://localhost:9090/api/v1/query?query=up` returns success with valid data.
-- **Sample Metric**: `up` (Prometheus target health).
+- **Host Endpoint**: `http://localhost:9090` (Static map `9090:9090`)
+- **Backend Health Verification**: Checked via `/-/healthy`.
+- **Actual Telemetry Verification**: Queried `/api/v1/query?query=http_server_request_duration_seconds_count` and verified that active application metrics are flowing into the backend.
+- **Sample Metric**: `http_server_request_duration_seconds_count`
 
 ## Logs
 - **Backend**: OpenSearch
-- **Endpoint**: `http://localhost:9200`
-- **Health**: OK
-- **Actual Verification**: `http://localhost:9200/otel-logs-*/_search?size=1` returns > 0 hits.
-- **Sample Log Metadata**: OTel formatted logs with `trace_id` and `span_id`.
+- **Host Endpoint**: `http://localhost:<ephemeral_port>`
+- **Backend Health Verification**: Queried `/_cluster/health` and received `status: yellow/green`.
+- **Actual Telemetry Verification**: Queried the `otel-logs-*` index via `/_search?size=1` and successfully located an application log.
 
 ## Traces
 - **Backend**: Jaeger
-- **Endpoint**: `http://localhost:16686`
-- **Health**: OK
-- **Actual Verification**: `http://localhost:16686/api/services` returns a list containing `frontend`.
-- **Sample Trace Metadata**: Service `frontend` traces visible in the Jaeger UI.
+- **Host Endpoint**: `http://localhost:<ephemeral_port>` (UI mapped port)
+- **Backend Health Verification**: Queried `/jaeger/ui/api/services` and received HTTP 200.
+- **Actual Telemetry Verification**: Queried `/jaeger/ui/api/traces?service=frontend&limit=1` and confirmed a real application trace (with traceID) exists for the frontend service.
 
 ## Port Map
-| Component | Host Port | Internal Port |
-| --- | --- | --- |
-| Application (Frontend) | 8080 | 8080 |
-| OTel Collector (HTTP) | 4318 | 4318 |
-| OTel Collector (gRPC) | 4317 | 4317 |
-| Metrics (Prometheus) | 9090 | 9090 |
-| Logs (OpenSearch) | 9200 | 9200 |
-| Traces (Jaeger UI) | 16686 | 16686 |
+Because the upstream compose files use ephemeral ports for several observability backends to avoid conflicts, ports are resolved dynamically at runtime. The `verify-otel-demo.ps1` script automatically detects these and writes them to a connection profile.
+- **Prometheus**: 9090
+- **OpenSearch**: Ephemeral (e.g., 59358)
+- **Jaeger UI/API**: Ephemeral (e.g., 59364)
+- **Frontend**: Ephemeral (e.g., 60144)
 
 ## Connection Profile
-Located at `config/opentelemetry-demo.yml`.
+A lightweight connection profile is generated automatically and stored at:
+`config/opentelemetry-demo.yaml`
 
 ## Start / Verify / Stop
-- **Start**: `powershell -ExecutionPolicy Bypass -File .\scripts\start-otel-demo.ps1`
-- **Verify**: `powershell -ExecutionPolicy Bypass -File .\scripts\verify-otel-demo.ps1`
-- **Stop**: `powershell -ExecutionPolicy Bypass -File .\scripts\stop-otel-demo.ps1`
+Project-owned scripts manage the lifecycle safely without interfering with other host Docker resources:
+- **Start**: `powershell .\scripts\start-otel-demo.ps1`
+- **Verify**: `powershell .\scripts\verify-otel-demo.ps1`
+- **Stop**: `powershell .\scripts\stop-otel-demo.ps1`
 
 ## Resource Usage
-- **Containers**: ~22
-- **Memory**: The Docker engine limits total RAM. The `compose` files set specific resource limits on containers, typically utilizing ~4GB RAM total.
-- **Disk**: Docker images take ~5GB of disk space. Free disk space on host (C: drive) was closely monitored during deployment.
+- **Containers Running**: 25
+- **Aggregate Memory**: ~2.0 GB - 3.0 GB Total (Fits comfortably within 16.7 GB RAM host).
+- **CPU**: Low at idle, periodic spikes due to the `load-generator` (5 VUs).
+- **Disk**: Adequate free disk space remaining on the Windows-SSD (C:). 
 
 ## Known Limitations
-- The deployment launches all microservices in the demo because they are tightly coupled in the official `compose.yaml`. This demands significant system resources.
+- The demo uses ephemeral host ports for OpenSearch and Jaeger. The `verify-otel-demo.ps1` script circumvents this by rewriting `config/opentelemetry-demo.yaml` on every successful verification.
+- OpenSearch takes longer to initialize than other containers; verification may fail if run immediately after start.
 
 ## Next Phase
-**Phase 2B** should implement the first concrete telemetry adapter for Aegis, based on this environment.
-Recommendation: Implement the **Metrics Provider** via **Prometheus** first. Prometheus is fully functioning on port 9090 and offers deterministic numeric signals that will allow the `InvestigationEngine` to confidently query anomalies.
+**Phase 2B Recommendation**:
+Based on the discovered environment, the **PrometheusProvider** should be implemented first. The Prometheus metric endpoint (`:9090`) is static, stable, and actively collecting rich application and infrastructure metrics (like `system_cpu_time_seconds_total` and `http_server_duration_milliseconds_count`). This makes it the ideal first adapter to connect Aegis to real-world data.

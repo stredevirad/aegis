@@ -174,8 +174,9 @@ def test_engine_tools_cleared_in_forming_hypotheses(engine: InvestigationEngine)
 
 
 def test_engine_sqlite_evidence_equality(engine: InvestigationEngine) -> None:
-    from src.domain.models import Evidence, EvidenceType
     import time
+
+    from src.domain.models import Evidence, EvidenceType
     
     ev_id = f"ev_verif_{int(time.time()*1000)}"
     ev = Evidence(
