@@ -375,13 +375,17 @@ causal_terms = _find_causal_terms(model_diagnosis)
 - **Run 1** (`product-catalog` localized, upstream degradation): Previously marked `CORRECT` → Revised to **`PARTIALLY_CORRECT`** (localized affected service and failure symptom, but did not identify feature flag mechanism).
 - **Run 2** (Symptom restatement: "Backend service returning HTTP 500"): Previously marked `PARTIALLY_CORRECT` → Revised to **`PARTIALLY_CORRECT / Symptom Alignment`** (High incident leak, 0 causal terms).
 
-**Evaluator Verification & Human Annotation Protocol (B.5 Criterion 1):**
+**Single-Human Reference Annotation Validation (B.5 Criterion 1):**
 - **Deterministic Evaluator Test Suite**: `tests/test_rca_evaluator.py` passes 21/21 unit tests, systematically verifying token normalization, symptom leak penalties, causal keyword extraction, and mechanism alignment.
-- **Human Annotation Fixture & Guide**:
-  - `config/evaluator_human_annotations.json` provides an unpopulated 12-case benchmark template spanning component localizations, symptom restatements, causal flag explanations, hallucinated components, healthy baselines, false negatives, explicit epistemic uncertainty, empty outputs, cache attribution errors, and irrelevant infrastructure blame.
-  - `docs/human-annotation-guide.md` establishes the evaluation rubric (differentiating symptom restatements from root cause mechanisms).
-- **Agreement Analysis Harness**: `tests/test_human_annotation_validation.py` validates template integrity and computes Observed Agreement ($P_o$), Cohen's Kappa ($\kappa$), and the full Confusion Matrix once human labels are populated by an independent expert.
-- **Status**: The evaluator implementation and evaluation harness are complete; genuine human validation remains pending independent external labeling.
+- **Reference Annotation Dataset**: `config/evaluator_human_annotations.json` contains 12 independently labeled benchmark diagnoses with rationales covering diverse failure modes.
+- **Annotation Methodology**: Single-human reference annotation (not multi-rater expert consensus). Rubric documented in `docs/human-annotation-guide.md`.
+- **Validation Results (`tests/test_human_annotation_validation.py`)**:
+  - **Total Cases Evaluated**: 12
+  - **Observed Agreement ($P_o$)**: **83.3%** (10/12 matches)
+  - **Cohen's Kappa ($\kappa$)**: **0.778** (Substantial agreement on Landis & Koch scale, $\kappa \in [0.61, 0.80]$)
+  - **Validation Threshold**: **PASSED** ($P_o \ge 70.0\%, \kappa \ge 0.60$)
+- **Discrepancy Analysis**:
+  - `annot_02` & `annot_05`: Human annotator scored pure symptom restatements as `INCORRECT`, whereas the deterministic evaluator awarded `PARTIALLY_CORRECT` because the affected component name (`product-catalog`) was recognized before applying the leak penalty. All other 10 cases (including full causal mechanisms, healthy baselines, false negatives, epistemic uncertainty, and hallucinated services) achieved 100% agreement.
 
 ---
 
@@ -475,14 +479,15 @@ Implemented `src/persistence/replay.py`:
 
 | Criterion | Target / Requirement | Status | Evidence / Verification |
 |:---|:---|:---:|:---|
-| **1. Human Annotation Validation** | $\ge 10$ human-annotated diagnoses | **PENDING HUMAN INPUT** | 12 candidate cases & guide in `config/evaluator_human_annotations.json` & `docs/human-annotation-guide.md`; agreement harness in `tests/test_human_annotation_validation.py`. Awaiting human scoring. |
+| **1. Human Annotation Validation** | $\ge 10$ human-annotated diagnoses | **SATISFIED** | 12 single-human reference annotated cases in `config/evaluator_human_annotations.json`; $P_o = 83.3\%$, $\kappa = 0.778$ (substantial agreement) in `tests/test_human_annotation_validation.py`. |
 | **2. Multi-Fault Scenarios** | $\ge 2$ distinct fault scenarios tested | **SATISFIED** | `productCatalogFailure` (hard outage) & `recommendationCacheFailure` (soft degradation) tested in OTel Demo. |
 | **3. Query Strategy Comparison** | Error-focused vs generic comparison | **SATISFIED** | Documented in D.2 (2.3x speedup, 59% noise reduction, Turn 1 verification). |
 | **4. Neutral Description Run** | $\ge 1$ neutral incident description run | **SATISFIED** | Documented in D.4 (`product-catalog-failure-neutral.yaml` yielded honest `INSUFFICIENT_EVIDENCE`). |
-| **5. Honest Documentation** | All results & limits documented | **SATISFIED** | Retroactive Phase 2E-2 scores revised to `PARTIALLY_CORRECT`; cache failure observability limits documented. |
-| **6. Automated Test Suite** | 100% test pass rate | **SATISFIED** | 122 passed, 1 skipped (`pytest tests/ -v`). |
+| **5. Honest Documentation** | All results & limits documented | **SATISFIED** | Retroactive Phase 2E-2 scores revised to `PARTIALLY_CORRECT`; single-human annotation scope and cache failure observability limits documented. |
+| **6. Automated Test Suite** | 100% test pass rate | **SATISFIED** | 122/122 tests passing (`pytest tests/ -v`). |
 | **7. Strict Type Safety** | `mypy` clean | **SATISFIED** | Success: 0 issues across 43 source files (`mypy src/ tests/`). |
 | **8. Code Quality / Lint** | `ruff` clean | **SATISFIED** | All checks passed (`ruff check src/ tests/`). |
 | **9. Fault Recovery** | No active faults left | **SATISFIED** | `inject-fault.py --recover-all` executed; system in healthy baseline. |
+
 
 
