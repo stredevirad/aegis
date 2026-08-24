@@ -2,8 +2,8 @@
 
 **Component**: Aegis MCP Server  
 **Package**: `src/adapters/mcp/`  
-**Protocol / SDK Version**: Model Context Protocol Python SDK `mcp>=2.0.0` (Protocol Spec: `2024-11-05`)  
-**Status**: COMPLETE (Phase 4A)  
+**Protocol / SDK Version**: Model Context Protocol Python SDK `mcp==2.0.0`, `mcp-types==2.0.0` (Protocol Version: `2026-07-28`, Default Negotiated: `2025-03-26`)  
+**Status**: COMPLETE (Phase 4A & Phase 4A.1)  
 
 ---
 
