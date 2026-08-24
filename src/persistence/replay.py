@@ -4,9 +4,9 @@ Phase 3.6: Provides compact snapshotting and offline replay of collected Evidenc
 so prompt experiments, summarizer evaluations, and RCA evaluator benchmarking
 can be reproduced deterministically without re-injecting live faults.
 """
+import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,6 @@ from src.domain import (
     MetricsProvider,
     ProviderStatus,
     ServiceHealth,
-    TopologyProvider,
     TracesProvider,
 )
 

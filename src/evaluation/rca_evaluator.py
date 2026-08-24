@@ -277,17 +277,30 @@ def evaluate_rca(
     # Check symptom/failure alignment
     has_failure_concept = bool(diag_tokens & failure_terms)
     
-    # Specific root cause alignment (matching specific mechanism like flag/catalog/cache/grpc)
-    specific_keywords = gt_tokens - {"the", "a", "an", "is", "was", "are", "service", "enabled", "causing"}
-    specific_matches = sum(1 for kw in specific_keywords if kw in diag_tokens or kw in model_diagnosis.lower())
-    specific_ratio = specific_matches / max(len(specific_keywords), 1)
+    # Isolate specific root cause mechanism keywords (excluding target service name, generic failure terms, and stopwords)
+    mechanism_keywords = (
+        gt_tokens
+        - target_tokens
+        - failure_terms
+        - _STOP_WORDS
+        - {"service", "services", "enabled", "causing", "status", "unknown", "backend"}
+    )
+    mech_matches = sum(1 for kw in mechanism_keywords if kw in diag_tokens or kw in model_diagnosis.lower())
+    mech_ratio = mech_matches / max(len(mechanism_keywords), 1)
 
     # Phase 3: Determine result with strengthened criteria
     if component_matched and has_failure_concept:
-        # Check for CORRECT: requires either specific root cause alignment OR causal explanation
-        has_causal_depth = bool(causal_terms) or specific_ratio >= 0.4 or "feature flag" in model_diagnosis.lower() or "flag" in diag_tokens
+        # Check for CORRECT: requires identifying the specific root cause mechanism from ground truth
+        # (e.g. feature flag name, flag toggle, cache disable, or substantial mechanism keyword overlap)
+        has_mechanism_alignment = (
+            mech_ratio >= 0.4 or
+            "feature flag" in model_diagnosis.lower() or
+            ("flag" in mechanism_keywords and "flag" in diag_tokens) or
+            ("cache" in mechanism_keywords and "cache" in diag_tokens) or
+            ("grpc" in mechanism_keywords and "grpc" in diag_tokens)
+        )
         
-        # Phase 3: High incident-leak downgrades the result
+        # High incident-leak downgrades the result
         if leak_ratio >= 0.8:
             # Diagnosis is mostly restating the incident — cannot be CORRECT
             rca_res = RCAResult.PARTIALLY_CORRECT
@@ -295,12 +308,12 @@ def evaluate_rca(
                 f"Downgraded from potential CORRECT: diagnosis mostly restates incident description "
                 f"(leak={leak_ratio:.0%})."
             )
-        elif has_causal_depth:
+        elif has_mechanism_alignment:
             rca_res = RCAResult.CORRECT
-            notes_list.append(f"Correct: Identified affected component ({target_service or 'target'}) with causal explanation.")
+            notes_list.append(f"Correct: Identified affected component ({target_service or 'target'}) and root cause mechanism.")
         else:
             rca_res = RCAResult.PARTIALLY_CORRECT
-            notes_list.append(f"Partially Correct: Identified affected component ({target_service or 'target'}) and failure symptom, but lacks causal explanation.")
+            notes_list.append(f"Partially Correct: Identified affected component ({target_service or 'target'}) and failure symptom, but did not pinpoint root cause mechanism.")
     elif component_matched:
         rca_res = RCAResult.PARTIALLY_CORRECT
         notes_list.append(f"Partially Correct: Identified affected service ({target_service or 'target'}).")

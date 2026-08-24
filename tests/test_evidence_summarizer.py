@@ -1,5 +1,6 @@
 """Tests for the Phase 3 evidence summarizer."""
 from datetime import datetime, timezone
+from typing import Any
 
 from src.domain import Evidence, EvidenceType
 from src.investigation.evidence_summarizer import (
@@ -10,7 +11,7 @@ from src.investigation.evidence_summarizer import (
 
 def _make_evidence(
     eid: str, etype: EvidenceType, summary: str,
-    service: str = "test-svc", data: dict | None = None,
+    service: str = "test-svc", data: dict[str, Any] | None = None,
 ) -> Evidence:
     now = datetime.now(timezone.utc)
     return Evidence(

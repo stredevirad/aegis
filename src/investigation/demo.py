@@ -212,11 +212,13 @@ def run_demo(
     with sqlite3.connect(repository.db_path) as conn:
         cursor = conn.execute("SELECT summary FROM events WHERE action = 'DIAGNOSIS_PRODUCED' AND incident_id = ?", (engine.incident.id,))
         row = cursor.fetchone()
-        if row: diagnosis_event = row[0]
-        
+        if row:
+            diagnosis_event = row[0]
+
         cursor = conn.execute("SELECT action, reason FROM recommendations WHERE incident_id = ?", (engine.incident.id,))
         r_row = cursor.fetchone()
-        if r_row: rec_event = f"{r_row[0]} (Reason: {r_row[1]})"
+        if r_row:
+            rec_event = f"{r_row[0]} (Reason: {r_row[1]})"
             
     classification = engine.incident.diagnosis_classification
     print(f"\nClassification   : {classification.value if classification else 'None'}")

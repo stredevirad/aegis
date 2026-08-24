@@ -17,7 +17,8 @@ def get_prometheus_endpoint() -> str | None:
     try:
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
-            return config.get("telemetry", {}).get("metrics", {}).get("endpoint")
+            ep = config.get("telemetry", {}).get("metrics", {}).get("endpoint")
+            return str(ep) if ep is not None else None
     except Exception:
         return None
 

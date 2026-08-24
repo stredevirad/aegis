@@ -1,8 +1,7 @@
 """Tests for Phase 3.6 Evidence Replay & Reproducibility module."""
-from datetime import datetime, timezone
-import json
 import os
 import tempfile
+from datetime import datetime, timezone
 
 import pytest
 

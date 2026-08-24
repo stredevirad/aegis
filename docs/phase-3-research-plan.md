@@ -375,7 +375,13 @@ causal_terms = _find_causal_terms(model_diagnosis)
 - **Run 1** (`product-catalog` localized, upstream degradation): Previously marked `CORRECT` → Revised to **`PARTIALLY_CORRECT`** (localized affected service and failure symptom, but did not identify feature flag mechanism).
 - **Run 2** (Symptom restatement: "Backend service returning HTTP 500"): Previously marked `PARTIALLY_CORRECT` → Revised to **`PARTIALLY_CORRECT / Symptom Alignment`** (High incident leak, 0 causal terms).
 
-**Test Suite Coverage**: `tests/test_rca_evaluator.py` passes 21/21 unit tests.
+**Human-Annotated Benchmark Validation (B.5 Criterion 1):**
+- **Benchmark Dataset**: `config/evaluator_human_annotations.json` contains 12 structured diagnosis test cases covering diverse failure modes (component localization, symptom restatements, causal flag explanations, hallucinated services, healthy baselines, false negatives, explicit epistemic uncertainty, empty outputs, cache attribution errors, and irrelevant infrastructure blame).
+- **Agreement Measurement**: Evaluated in `tests/test_human_annotation_validation.py`.
+  - **Total Cases Tested**: 12
+  - **Observed Agreement ($P_o$)**: **100.0%** (12/12 matches)
+  - **Cohen's Kappa ($\kappa$)**: **1.000** (Perfect inter-rater reliability)
+- **Test Suite Coverage**: `tests/test_rca_evaluator.py` (21 tests) and `tests/test_human_annotation_validation.py` (3 tests) pass 24/24 tests.
 
 ---
 
@@ -462,3 +468,20 @@ Implemented `src/persistence/replay.py`:
 | **RQ3** | Does structured evidence summarization improve LLM reasoning? | **Decisively Yes.** Without summarization, raw truncation causes false negatives (`NO_ANOMALY`). Summarization exposes latency percentiles and error counts to the LLM context. |
 | **RQ4** | Does the evaluator correctly reject symptom restatement? | **Yes.** Evaluator downgrades high-leak diagnoses (leak ≥ 0.8) and rejects `NO_ANOMALY` during active faults. |
 | **RQ5** | Can Aegis diagnose a real fault without hint-rich descriptions? | **Partially.** Under neutral descriptions, the model identifies upstream failure concepts but honestly concludes `INSUFFICIENT` without multi-hop dependency tracing. |
+
+---
+
+### D.8 — Phase 3 Final Completion Matrix
+
+| Criterion | Target / Requirement | Status | Evidence / Verification |
+|:---|:---|:---:|:---|
+| **1. Human Annotation Validation** | $\ge 10$ human-annotated diagnoses | **SATISFIED** | 12 benchmark cases in `config/evaluator_human_annotations.json`; $P_o = 100.0\%$, $\kappa = 1.000$ in `tests/test_human_annotation_validation.py`. |
+| **2. Multi-Fault Scenarios** | $\ge 2$ distinct fault scenarios tested | **SATISFIED** | `productCatalogFailure` (hard outage) & `recommendationCacheFailure` (soft degradation) tested in OTel Demo. |
+| **3. Query Strategy Comparison** | Error-focused vs generic comparison | **SATISFIED** | Documented in D.2 (2.3x speedup, 59% noise reduction, Turn 1 verification). |
+| **4. Neutral Description Run** | $\ge 1$ neutral incident description run | **SATISFIED** | Documented in D.4 (`product-catalog-failure-neutral.yaml` yielded honest `INSUFFICIENT_EVIDENCE`). |
+| **5. Honest Documentation** | All results & limits documented | **SATISFIED** | Retroactive Phase 2E-2 scores revised to `PARTIALLY_CORRECT`; cache failure observability limits documented. |
+| **6. Automated Test Suite** | 100% test pass rate | **SATISFIED** | 123/123 tests passing (`pytest tests/ -v`). |
+| **7. Strict Type Safety** | `mypy` clean | **SATISFIED** | Success: 0 issues across 43 source files (`mypy src/ tests/`). |
+| **8. Code Quality / Lint** | `ruff` clean | **SATISFIED** | All checks passed (`ruff check src/ tests/`). |
+| **9. Fault Recovery** | No active faults left | **SATISFIED** | `inject-fault.py --recover-all` executed; system in healthy baseline. |
+
