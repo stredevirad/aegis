@@ -25,6 +25,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests requiring live external services (Prometheus, OpenSearch, Jaeger, Ollama)",
+]
 
 [tool.mypy]
 strict = true
