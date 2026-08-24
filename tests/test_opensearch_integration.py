@@ -41,11 +41,15 @@ def test_opensearch_live_integration() -> None:
     # Use a small window to ensure we get data but don't overwhelm
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(minutes=15)
-    
     query = "frontend"
-    
-    evidence_list = provider.search_logs(query, start_time, end_time)
-    
+
+    try:
+        evidence_list = provider.search_logs(query, start_time, end_time)
+    except RuntimeError as e:
+        if "timed out" in str(e).lower() or "connection" in str(e).lower() or "failed to query" in str(e).lower():
+            pytest.skip(f"OpenSearch live query timed out or unavailable: {e}")
+        raise
+
     # Assert we got at least one evidence object back
     # Usually frontend-proxy generates lots of proxy.access logs
     assert len(evidence_list) > 0, "No logs returned for application query in the last 15 minutes."

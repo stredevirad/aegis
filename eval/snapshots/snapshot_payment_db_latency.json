@@ -1,0 +1,56 @@
+{
+  "snapshot_id": "snap_eval_payment_db_latency_001",
+  "scenario_id": "feature_flag_db_latency",
+  "captured_at": "2026-08-24T18:00:00.000000+00:00",
+  "target_service": "payment-api",
+  "affected_service": "frontend",
+  "metadata": {
+    "ground_truth_root_cause": "Downstream database query execution latency spike caused payment-api timeouts and cascading frontend degradation",
+    "ground_truth_component": "downstream-db",
+    "ground_truth_mechanism": "database latency / connection timeout"
+  },
+  "evidence_items": [
+    {
+      "id": "ev_metric_db_p95",
+      "type": "METRIC",
+      "source_provider": "prometheus",
+      "service_resource": "downstream-db",
+      "summary": "downstream-db p95 query latency spiked from 12ms to 2450ms",
+      "observed_at": "2026-08-24T17:55:00.000000+00:00",
+      "collected_at": "2026-08-24T17:56:00.000000+00:00",
+      "data": {
+        "metric_name": "db_query_duration_seconds",
+        "value": 2.45,
+        "baseline": 0.012
+      }
+    },
+    {
+      "id": "ev_log_payment_timeout",
+      "type": "LOG",
+      "source_provider": "opensearch",
+      "service_resource": "payment-api",
+      "summary": "ERROR [payment_processor]: Timeout executing SQL transaction to downstream-db after 2000ms",
+      "observed_at": "2026-08-24T17:55:30.000000+00:00",
+      "collected_at": "2026-08-24T17:56:10.000000+00:00",
+      "data": {
+        "level": "ERROR",
+        "service": "payment-api",
+        "message": "Timeout executing SQL transaction to downstream-db after 2000ms"
+      }
+    },
+    {
+      "id": "ev_trace_payment_span",
+      "type": "TRACE",
+      "source_provider": "jaeger",
+      "service_resource": "payment-api",
+      "summary": "Trace pay_order: root span duration 2520ms, child span db_query duration 2450ms (status: deadline_exceeded)",
+      "observed_at": "2026-08-24T17:55:40.000000+00:00",
+      "collected_at": "2026-08-24T17:56:20.000000+00:00",
+      "data": {
+        "trace_id": "trace_pay_9981",
+        "duration_ms": 2520,
+        "error_spans": 1
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@
 - **Phase 4C (OpenTelemetry Demo MCP Integration)**: `COMPLETE`
 - **Phase 4D (MCP Boundary Hardening)**: `COMPLETE`
 - **Phase 4E (Native vs MCP Overhead Experiment)**: `COMPLETE`
+- **Phase 5 (Replay-Based Model Capability Study)**: `COMPLETE`
 
 ---
 
@@ -20,6 +21,7 @@
 | **4C** | OTel Demo Astronomy Shop FastMCP Integration | `src/adapters/mcp/otel_demo.py`, `tests/test_otel_mcp_integration.py` | [`docs/phase-4c-otel-mcp-integration.md`](file:///c:/Users/LENOVO/Desktop/Aegis/docs/phase-4c-otel-mcp-integration.md) |
 | **4D** | Security & Boundary Hardening | `tests/test_mcp_hardening.py` | [`docs/phase-4d-mcp-hardening.md`](file:///c:/Users/LENOVO/Desktop/Aegis/docs/phase-4d-mcp-hardening.md) |
 | **4E** | Performance & Latency Benchmark | `scripts/run_mcp_overhead_experiment.py` | [`docs/phase-4e-mcp-experiment.md`](file:///c:/Users/LENOVO/Desktop/Aegis/docs/phase-4e-mcp-experiment.md) |
+| **5** | Replay-Based Model Capability Study | `scripts/run_model_replay_comparison.py`, `tests/test_model_capability_study.py` | [`docs/phase-5-model-comparison.md`](file:///c:/Users/LENOVO/Desktop/Aegis/docs/phase-5-model-comparison.md) |
 
 ---
 

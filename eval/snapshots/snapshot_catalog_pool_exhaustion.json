@@ -1,0 +1,54 @@
+{
+  "snapshot_id": "snap_eval_catalog_pool_exhaustion_002",
+  "scenario_id": "catalog_db_pool_exhaustion",
+  "captured_at": "2026-08-24T18:30:00.000000+00:00",
+  "target_service": "product-catalog",
+  "affected_service": "frontend",
+  "metadata": {
+    "ground_truth_root_cause": "Database connection pool exhaustion on product-catalog resulted in HTTP 500 internal server errors",
+    "ground_truth_component": "product-catalog",
+    "ground_truth_mechanism": "connection pool exhaustion / database failure"
+  },
+  "evidence_items": [
+    {
+      "id": "ev_metric_catalog_500",
+      "type": "METRIC",
+      "source_provider": "prometheus",
+      "service_resource": "product-catalog",
+      "summary": "product-catalog HTTP 5xx error rate rose to 84.5%",
+      "observed_at": "2026-08-24T18:25:00.000000+00:00",
+      "collected_at": "2026-08-24T18:26:00.000000+00:00",
+      "data": {
+        "metric_name": "http_requests_5xx_rate",
+        "value": 0.845
+      }
+    },
+    {
+      "id": "ev_log_catalog_exhaustion",
+      "type": "LOG",
+      "source_provider": "opensearch",
+      "service_resource": "product-catalog",
+      "summary": "FATAL [catalog_db]: sqlalchemy.exc.TimeoutError: QueuePool limit of size 10 overflow 10 reached, connection timed out",
+      "observed_at": "2026-08-24T18:25:15.000000+00:00",
+      "collected_at": "2026-08-24T18:26:05.000000+00:00",
+      "data": {
+        "level": "FATAL",
+        "service": "product-catalog",
+        "message": "QueuePool limit of size 10 overflow 10 reached, connection timed out"
+      }
+    },
+    {
+      "id": "ev_trace_catalog_500",
+      "type": "TRACE",
+      "source_provider": "jaeger",
+      "service_resource": "frontend",
+      "summary": "Trace /api/products: downstream call to productcatalogservice failed with status code 500",
+      "observed_at": "2026-08-24T18:25:20.000000+00:00",
+      "collected_at": "2026-08-24T18:26:10.000000+00:00",
+      "data": {
+        "trace_id": "trace_cat_1102",
+        "http_status": 500
+      }
+    }
+  ]
+}
