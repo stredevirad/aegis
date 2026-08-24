@@ -375,13 +375,13 @@ causal_terms = _find_causal_terms(model_diagnosis)
 - **Run 1** (`product-catalog` localized, upstream degradation): Previously marked `CORRECT` → Revised to **`PARTIALLY_CORRECT`** (localized affected service and failure symptom, but did not identify feature flag mechanism).
 - **Run 2** (Symptom restatement: "Backend service returning HTTP 500"): Previously marked `PARTIALLY_CORRECT` → Revised to **`PARTIALLY_CORRECT / Symptom Alignment`** (High incident leak, 0 causal terms).
 
-**Human-Annotated Benchmark Validation (B.5 Criterion 1):**
-- **Benchmark Dataset**: `config/evaluator_human_annotations.json` contains 12 structured diagnosis test cases covering diverse failure modes (component localization, symptom restatements, causal flag explanations, hallucinated services, healthy baselines, false negatives, explicit epistemic uncertainty, empty outputs, cache attribution errors, and irrelevant infrastructure blame).
-- **Agreement Measurement**: Evaluated in `tests/test_human_annotation_validation.py`.
-  - **Total Cases Tested**: 12
-  - **Observed Agreement ($P_o$)**: **100.0%** (12/12 matches)
-  - **Cohen's Kappa ($\kappa$)**: **1.000** (Perfect inter-rater reliability)
-- **Test Suite Coverage**: `tests/test_rca_evaluator.py` (21 tests) and `tests/test_human_annotation_validation.py` (3 tests) pass 24/24 tests.
+**Evaluator Verification & Human Annotation Protocol (B.5 Criterion 1):**
+- **Deterministic Evaluator Test Suite**: `tests/test_rca_evaluator.py` passes 21/21 unit tests, systematically verifying token normalization, symptom leak penalties, causal keyword extraction, and mechanism alignment.
+- **Human Annotation Fixture & Guide**:
+  - `config/evaluator_human_annotations.json` provides an unpopulated 12-case benchmark template spanning component localizations, symptom restatements, causal flag explanations, hallucinated components, healthy baselines, false negatives, explicit epistemic uncertainty, empty outputs, cache attribution errors, and irrelevant infrastructure blame.
+  - `docs/human-annotation-guide.md` establishes the evaluation rubric (differentiating symptom restatements from root cause mechanisms).
+- **Agreement Analysis Harness**: `tests/test_human_annotation_validation.py` validates template integrity and computes Observed Agreement ($P_o$), Cohen's Kappa ($\kappa$), and the full Confusion Matrix once human labels are populated by an independent expert.
+- **Status**: The evaluator implementation and evaluation harness are complete; genuine human validation remains pending independent external labeling.
 
 ---
 
@@ -475,13 +475,14 @@ Implemented `src/persistence/replay.py`:
 
 | Criterion | Target / Requirement | Status | Evidence / Verification |
 |:---|:---|:---:|:---|
-| **1. Human Annotation Validation** | $\ge 10$ human-annotated diagnoses | **SATISFIED** | 12 benchmark cases in `config/evaluator_human_annotations.json`; $P_o = 100.0\%$, $\kappa = 1.000$ in `tests/test_human_annotation_validation.py`. |
+| **1. Human Annotation Validation** | $\ge 10$ human-annotated diagnoses | **PENDING HUMAN INPUT** | 12 candidate cases & guide in `config/evaluator_human_annotations.json` & `docs/human-annotation-guide.md`; agreement harness in `tests/test_human_annotation_validation.py`. Awaiting human scoring. |
 | **2. Multi-Fault Scenarios** | $\ge 2$ distinct fault scenarios tested | **SATISFIED** | `productCatalogFailure` (hard outage) & `recommendationCacheFailure` (soft degradation) tested in OTel Demo. |
 | **3. Query Strategy Comparison** | Error-focused vs generic comparison | **SATISFIED** | Documented in D.2 (2.3x speedup, 59% noise reduction, Turn 1 verification). |
 | **4. Neutral Description Run** | $\ge 1$ neutral incident description run | **SATISFIED** | Documented in D.4 (`product-catalog-failure-neutral.yaml` yielded honest `INSUFFICIENT_EVIDENCE`). |
 | **5. Honest Documentation** | All results & limits documented | **SATISFIED** | Retroactive Phase 2E-2 scores revised to `PARTIALLY_CORRECT`; cache failure observability limits documented. |
-| **6. Automated Test Suite** | 100% test pass rate | **SATISFIED** | 123/123 tests passing (`pytest tests/ -v`). |
+| **6. Automated Test Suite** | 100% test pass rate | **SATISFIED** | 122 passed, 1 skipped (`pytest tests/ -v`). |
 | **7. Strict Type Safety** | `mypy` clean | **SATISFIED** | Success: 0 issues across 43 source files (`mypy src/ tests/`). |
 | **8. Code Quality / Lint** | `ruff` clean | **SATISFIED** | All checks passed (`ruff check src/ tests/`). |
 | **9. Fault Recovery** | No active faults left | **SATISFIED** | `inject-fault.py --recover-all` executed; system in healthy baseline. |
+
 

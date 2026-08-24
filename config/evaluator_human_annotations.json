@@ -8,8 +8,8 @@
     "target_service": "product-catalog",
     "incident_title": "Elevated Error Rate on Product Pages",
     "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages. Product details fail to load.",
-    "human_label": "PARTIALLY_CORRECT",
-    "human_rationale": "Correctly localized the fault to the product-catalog upstream dependency and correlated with 500 errors, but did not identify the feature flag root mechanism."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_02_phase2e2_run2",
@@ -20,8 +20,8 @@
     "target_service": "product-catalog",
     "incident_title": "Elevated Error Rate on Product Pages",
     "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages. Product details fail to load.",
-    "human_label": "PARTIALLY_CORRECT",
-    "human_rationale": "Identified product API component keyword and 500 symptom, but has high overlap with incident description and lacks causal depth."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_03_causal_flag_diagnosis",
@@ -32,8 +32,8 @@
     "target_service": "product-catalog",
     "incident_title": "Elevated Error Rate on Product Pages",
     "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages.",
-    "human_label": "CORRECT",
-    "human_rationale": "Precisely identifies the root cause (productCatalogFailure flag), failing service, and causal failure propagation."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_04_hallucinated_service",
@@ -44,8 +44,8 @@
     "target_service": "product-catalog",
     "incident_title": "Elevated Error Rate on Product Pages",
     "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages.",
-    "human_label": "INCORRECT",
-    "human_rationale": "Hallucinates payment service and database deadlocks when actual issue is product-catalog feature flag."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_05_verbatim_leak",
@@ -56,8 +56,8 @@
     "target_service": "product-catalog",
     "incident_title": "Elevated Error Rate on Product Pages",
     "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages. Product details fail to load.",
-    "human_label": "PARTIALLY_CORRECT",
-    "human_rationale": "Directly echoes the prompt symptom without diagnostic reasoning; downgraded by leak penalty."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_06_healthy_baseline",
@@ -68,8 +68,8 @@
     "target_service": "frontend",
     "incident_title": "Routine Anomaly Investigation",
     "incident_description": "Periodic system health check for frontend service.",
-    "human_label": "CORRECT",
-    "human_rationale": "Correctly identifies healthy system state when no fault is injected."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_07_false_negative",
@@ -80,8 +80,8 @@
     "target_service": "product-catalog",
     "incident_title": "Elevated Error Rate on Product Pages",
     "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages.",
-    "human_label": "INCORRECT",
-    "human_rationale": "Concludes NO_ANOMALY despite an active, severe outage."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_08_insufficient_conclusion",
@@ -92,8 +92,8 @@
     "target_service": "product-catalog",
     "incident_title": "Service Degradation Anomaly Detected",
     "incident_description": "Automated monitoring detected elevated HTTP 500 error rates across user-facing endpoints.",
-    "human_label": "INSUFFICIENT_EVIDENCE",
-    "human_rationale": "Model correctly identifies epistemic uncertainty and abstains with INSUFFICIENT classification."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_09_empty_diagnosis",
@@ -104,8 +104,8 @@
     "target_service": "product-catalog",
     "incident_title": "Elevated Error Rate on Product Pages",
     "incident_description": "Users are experiencing HTTP 500 errors.",
-    "human_label": "INSUFFICIENT_EVIDENCE",
-    "human_rationale": "Empty diagnosis provides no evidence or conclusion."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_10_cache_partial_attribution",
@@ -116,8 +116,8 @@
     "target_service": "recommendation",
     "incident_title": "Recommendation Latency Anomaly",
     "incident_description": "Recommendation response latency elevated.",
-    "human_label": "PARTIALLY_CORRECT",
-    "human_rationale": "Localizes issue to recommendation service but misattributes root cause to payment network latency."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_11_cache_causal_diagnosis",
@@ -128,8 +128,8 @@
     "target_service": "recommendation",
     "incident_title": "Recommendation Latency Anomaly",
     "incident_description": "Recommendation response latency elevated.",
-    "human_label": "CORRECT",
-    "human_rationale": "Accurately identifies the recommendationCacheFailure flag and root mechanism."
+    "human_label": null,
+    "human_rationale": null
   },
   {
     "id": "annot_12_irrelevant_infra_blame",
@@ -140,7 +140,7 @@
     "target_service": "product-catalog",
     "incident_title": "Elevated Error Rate on Product Pages",
     "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages.",
-    "human_label": "INCORRECT",
-    "human_rationale": "Blames unrelated Kubernetes infrastructure without evidence."
+    "human_label": null,
+    "human_rationale": null
   }
 ]
