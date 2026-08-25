@@ -60,14 +60,27 @@ Both models were evaluated on the exact same reconstructed evidence snapshots an
 
 ## 5. Core Research Insights
 
-1. **High Telemetry Signal Density Empowers Compact Models**:
+1. **Preliminary Observation: Compact Models Succeed on High-Density Diagnostic Evidence**:
    - When telemetry is pre-filtered by error signals and condensed via `EvidenceSummarizer`, even an ultra-compact **1.2B parameter model** (`llama3.2:1b`) successfully identifies the core failure mechanism (e.g. `QueuePool` size 10 overflow, 2000ms SQL query timeout).
-   - This validates that raw parameter scale is not a hard barrier for incident diagnosis when telemetry preprocessing provides high signal-to-noise ratio.
+   - This suggests that raw parameter scale may not be a hard barrier for incident diagnosis when telemetry preprocessing provides high signal-to-noise ratio, though this observation is based on 2 controlled scenarios.
 
-2. **Parameter Scale Enhances Multi-Hop Causal Decomposition**:
+2. **Qualitative Observation: Parameter Scale Correlates with Causal Decomposition Depth**:
    - While `llama3.2:1b` identified the localized failure condition, `qwen3.5:4b` demonstrated superior multi-hop reasoning by mapping the full causal chain:
      $$\text{Downstream DB Latency} \longrightarrow \text{Payment API Transaction Timeout} \longrightarrow \text{Cascading Frontend 500}$$
    - `qwen3.5:4b` also maintained lower incident-leak ratios and generated actionable mitigation guidance.
 
 3. **Replay-Based Determinism**:
    - Evidence snapshotting enables reproducible evaluation of prompt templates and reasoning architectures in < 3 minutes without requiring live cloud or cluster testbed deployments.
+
+---
+
+## 6. Study Limitations
+
+> [!WARNING]
+> The following limitations must be explicitly acknowledged when interpreting Phase 5 results.
+
+1. **Small Sample Size**: The study evaluates 2 models × 2 scenarios = **4 total data points**. This is sufficient to demonstrate the feasibility of the replay-based evaluation methodology, but **insufficient to support statistically generalizable claims** about model capability.
+2. **High Signal Density**: Each snapshot contains exactly 3 evidence items (1 metric, 1 log, 1 trace), all directly relevant to the failure. Real-world incidents may contain hundreds of noisy evidence items where signal extraction is substantially harder.
+3. **Single Execution Per Condition**: Each model was evaluated once per scenario. LLM outputs are non-deterministic; repeated trials would be needed to establish reliability confidence intervals.
+4. **Evaluator Sensitivity**: The `evaluate_rca` evaluator uses keyword-based mechanism alignment. Both models scored `CORRECT` partly because the evidence summaries contained explicit failure keywords (e.g. "QueuePool limit", "Timeout executing SQL transaction") that the evaluator's mechanism matching detected.
+5. **No Baseline Comparison**: The study does not include a "no summarization" or "random model" baseline condition.

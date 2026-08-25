@@ -12,8 +12,8 @@ Aegis has completed Phases 1, 2, and 3 with all experimental results, validation
 
 | Verification Dimension | Result | Details |
 |:---|:---:|:---|
-| **pytest Test Suite** | **122 / 122 passed** | 21 test modules, 100% pass rate in ~35s, **0 warnings** |
-| **mypy Type Safety** | **0 issues** | Strict typing verified across all **43 source files** |
+| **pytest Test Suite** | **162 / 165 passed** | 3 skipped (offline live-integration), ~66s |
+| **mypy Type Safety** | **0 issues** | Strict typing verified across all **54 source files** |
 | **ruff Linter** | **All checks passed** | Clean formatting and strict import sorting |
 | **Fault State** | **OFF (Healthy)** | All feature flags recovered to `off` baseline |
 | **Persistence Integrity** | **PASSED** | Full roundtrip persistence in SQLite |

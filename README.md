@@ -1,6 +1,6 @@
 # Aegis — Evidence-Grounded Incident Investigation & Root Cause Analysis
 
-[![CI Status](https://img.shields.io/badge/tests-122%20passed-brightgreen)](#testing)
+[![CI Status](https://img.shields.io/badge/tests-162%20passed-brightgreen)](#testing)
 [![Type Checking](https://img.shields.io/badge/mypy-strict%20clean-blue)](#testing)
 [![Code Style](https://img.shields.io/badge/code%20style-ruff-000000.svg)](#testing)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
@@ -20,7 +20,7 @@ Unlike naive LLM wrappers that dump uncurated telemetry into prompts or restate 
 - **Error-Focused Query Optimization**: Targeted error filtering reduces investigation duration by **2.3x** (137s vs 312s) and eliminates **59%** of evidence noise.
 - **Leak-Aware RCA Evaluator**: Automated evaluation framework with incident-leak detection and causal language verification, validated against a 12-case benchmark with substantial single-human reference agreement ($\kappa = 0.778$).
 - **Deterministic Offline Replay**: JSON snapshot export/import allows offline prompt engineering and benchmark evaluation without running live Docker clusters.
-- **Strictly Typed & Audited**: 122 automated unit/integration tests (100% pass rate), strict `mypy` type checking (0 issues across 43 source files), and clean `ruff` linting.
+- **Strictly Typed & Audited**: 165 automated unit/integration tests (162 passed, 3 skipped for offline live-integration), strict `mypy` type checking (0 issues across 54 source files), and clean `ruff` linting.
 
 ---
 
@@ -175,7 +175,7 @@ Recommendation   : Scale up downstream-db replicas (Reason: High latency due to 
 ## Testing & Quality Assurance
 
 ```powershell
-# Run all 122 unit and integration tests
+# Run all 165 unit and integration tests
 pytest tests/ -v
 
 # Run human-annotation agreement validation test

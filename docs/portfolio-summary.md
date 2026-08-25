@@ -26,8 +26,8 @@
 
 | Metric | Measured Value | Verification Source |
 |---|---|---|
-| **Automated Test Suite** | **122 / 122 passing** (100%) | `pytest tests/ -v` (0 warnings) |
-| **Static Type Safety** | **0 issues** across 43 source files | `mypy src/ tests/` (strict mode) |
+| **Automated Test Suite** | **162 / 165 passing** (3 skipped: offline live-integration) | `pytest tests/ -v` |
+| **Static Type Safety** | **0 issues** across 54 source files | `mypy src/ tests/` (strict mode) |
 | **Code Formatting / Lint** | **0 errors** | `ruff check src/ tests/` |
 | **Investigation Speedup** | **2.3x faster** (137s vs 312s) | Phase 3.2 Error-focused querying |
 | **Evidence Volume Reduction** | **59% reduction** (66 vs 163 items) | Phase 3.2 Telemetry filtering |
