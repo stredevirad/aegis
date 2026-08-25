@@ -47,17 +47,17 @@ This document records the comprehensive verification, experimental results, and 
 
 ```text
 pytest tests/ -v
-============================ 122 passed in 37.30s =============================
+================= 162 passed, 3 skipped in ~66s ==================
 
 mypy src/ tests/
-Success: no issues found in 43 source files
+Success: no issues found in 54 source files
 
 ruff check src/ tests/
 All checks passed!
 ```
 
 - **Zero pytest warnings** (custom `integration` mark registered).
-- **Strict type checking** across all 43 source and test files.
+- **Strict type checking** across all 54 source and test files.
 - **Mock demo execution** verified clean round-trip persistence in SQLite.
 - **All fault flags recovered** and healthy baseline maintained.
 

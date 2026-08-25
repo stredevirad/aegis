@@ -175,7 +175,7 @@ Recommendation   : Scale up downstream-db replicas (Reason: High latency due to 
 ## Testing & Quality Assurance
 
 ```powershell
-# Run all 165 unit and integration tests
+# Run automated test suite (165 collected; 162 passed; 3 skipped offline)
 pytest tests/ -v
 
 # Run human-annotation agreement validation test
@@ -215,7 +215,7 @@ aegis/
 │   ├── evaluation/                      # Incident-leak aware RCA evaluator
 │   ├── investigation/                   # InvestigationEngine, ToolDispatcher, Summarizer
 │   └── persistence/                     # SQLite repository and deterministic replay engine
-└── tests/                               # 122 unit, integration, and resilience tests
+└── tests/                               # 165 tests across 26 test modules (162 passed, 3 skipped offline)
 ```
 
 ---

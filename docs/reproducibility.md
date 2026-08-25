@@ -35,13 +35,13 @@ ruff --version
 
 ## 2. Automated Test Suite & Static Verification
 
-To run the complete automated test suite (122 tests across 21 test files):
+To run the complete automated test suite (165 collected; 162 passed; 3 skipped across 26 test files):
 
 ```powershell
 # Full test suite execution
 pytest tests/ -v
 
-# Static type checking (strict mode across 43 source files)
+# Static type checking (strict mode across 54 source files)
 mypy src/ tests/
 
 # Linter and style checks

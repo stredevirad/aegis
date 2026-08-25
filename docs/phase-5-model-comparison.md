@@ -60,9 +60,9 @@ Both models were evaluated on the exact same reconstructed evidence snapshots an
 
 ## 5. Core Research Insights
 
-1. **Preliminary Observation: Compact Models Succeed on High-Density Diagnostic Evidence**:
-   - When telemetry is pre-filtered by error signals and condensed via `EvidenceSummarizer`, even an ultra-compact **1.2B parameter model** (`llama3.2:1b`) successfully identifies the core failure mechanism (e.g. `QueuePool` size 10 overflow, 2000ms SQL query timeout).
-   - This suggests that raw parameter scale may not be a hard barrier for incident diagnosis when telemetry preprocessing provides high signal-to-noise ratio, though this observation is based on 2 controlled scenarios.
+1. **Preliminary Observation: Both Tested Models Produced Evaluator-Accepted Diagnoses on the Two Replayed High-Signal Scenarios**:
+   - On the two replayed scenarios with high-density, pre-filtered telemetry (3 items per snapshot), both `qwen3.5:4b` and `llama3.2:1b` identified the core failure mechanism (e.g. `QueuePool` size 10 overflow, 2000ms SQL query timeout).
+   - This provides an initial methodology demonstration showing that compact models can process structured evidence when presented with condensed diagnostic signals, though this is an exploratory observation across $N=4$ data points (2 scenarios × 2 models) rather than a statistically powered benchmark.
 
 2. **Qualitative Observation: Parameter Scale Correlates with Causal Decomposition Depth**:
    - While `llama3.2:1b` identified the localized failure condition, `qwen3.5:4b` demonstrated superior multi-hop reasoning by mapping the full causal chain:

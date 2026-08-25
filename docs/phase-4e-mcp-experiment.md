@@ -41,9 +41,9 @@ To determine the performance and operational tradeoffs of adopting the Model Con
 - **Factors**: Pydantic schema validation, argument dictionary parsing, dynamic tool registration resolution, and JSON-RPC `TextContent` encapsulation.
 - **Significance for RCA**: In an iterative investigation loop involving 4–8 tool turns, in-process MCP introduces negligible total delay (< 30 ms), making it viable for embedded tool routing.
 
-### 3.2 Subprocess & IPC Transport Cost (Single-Shot Stdio)
-- **Single-Shot Spawning**: Establishing a new subprocess stdio session per tool call requires **~4.6 s to 5.7 s** on Windows/CPython 3.13 due to interpreter startup, package import resolution (`mcp`, `pydantic`, `anyio`), and JSON-RPC initialization handshake.
-- **Architectural Implication**: For high-frequency telemetry querying, external MCP tools must maintain **persistent client sessions** (`ClientSession` reuse) rather than creating short-lived on-demand processes.
+### 3.2 Subprocess & IPC Transport Cost (Cold-Start Stdio)
+- **Cold-Start Subprocess Overhead**: Cold-start stdio MCP incurs multi-second process/initialization overhead in the current implementation (~4.6 s to 5.7 s on Windows/CPython 3.13) because `AegisMCPClient.invoke_tool()` launches a fresh subprocess, imports dependencies (`mcp`, `pydantic`, `anyio`), and performs the full JSON-RPC initialization handshake for each single-shot invocation. This measurement reflects process spawn and interpreter startup, **not** steady-state MCP protocol latency.
+- **Session Architecture Note**: Persistent session reuse is not currently implemented in `AegisMCPClient`. For high-frequency telemetry querying in production, external MCP integrations should maintain persistent client sessions rather than spawning short-lived on-demand processes.
 
 ### 3.3 Evidence Provenance & Fidelity
 - Across all 5 tools and all experimental iterations, **100% of Evidence fields** (`id`, `type`, `source_provider`, `service_resource`, `observed_at`, `collected_at`, `summary`, `data`) were preserved without data loss or timestamp degradation.
