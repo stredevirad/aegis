@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "written_at": "2026-10-01",
+  "written_before": "any aegis.core pipeline code (Council B, 'one thing to do first')",
+  "author": "engineering agent, derived from the injected fault in each scenario definition (not from pipeline output)",
+  "owner_signoff": "PENDING \u2014 the owner should review and sign; until then these are agent-authored expectations",
+  "rules_version": "Council B corrected verdict rules (docs/councils/council-B-rca.md)",
+  "finding": "The flag-change event is NOT present in any held-out capture (only flagd evaluation calls in proxy logs) and traces carry no span status. Localising product-catalog with confidence is therefore impossible from these captures; a recapture with the production collectors is required for a real-data localisation test (roadmap M10).",
+  "headline_metric": "confident_wrong_count must be 0",
+  "cases": [
+    {
+      "case_id": "heldout_inc_demo_1787555948",
+      "scenario_id": "scenario_live_frontend_001",
+      "evidence_sha256": "13678eff72fd98ddd391614626b92aec28a5b86ac0fc48f05811aee72b048181",
+      "expected": {
+        "acceptable_classifications": [
+          "NO_ANOMALY",
+          "INSUFFICIENT"
+        ],
+        "acceptable_root_services_if_named": [],
+        "must_mention_in_candidates_or_next_checks": [],
+        "confident_wrong_if": [
+          "classification in (PLAUSIBLE, CONFIRMED) naming any root cause (false alarm on a healthy system)"
+        ],
+        "rationale": "No fault injected. Change feed and baseline window are absent from the capture, so INSUFFICIENT (coverage) is also honest."
+      }
+    },
+    {
+      "case_id": "heldout_inc_fault_1787558017",
+      "scenario_id": "scenario_product_catalog_failure",
+      "evidence_sha256": "f3166935122a768af9bf7e41d417aef115f34b753af5f66bac524742297e72be",
+      "expected": {
+        "acceptable_classifications": [
+          "INSUFFICIENT",
+          "PLAUSIBLE"
+        ],
+        "acceptable_root_services_if_named": [
+          "product-catalog"
+        ],
+        "must_mention_in_candidates_or_next_checks": [
+          "product-catalog"
+        ],
+        "confident_wrong_if": [
+          "classification == CONFIRMED (propagation cannot be evaluated: no span status in capture)",
+          "classification == NO_ANOMALY (a fault was active)",
+          "a root service other than product-catalog is named at PLAUSIBLE or above (e.g. frontend, the symptom)",
+          "mechanism == change_induced while no change event is present in the snapshot"
+        ],
+        "rationale": "Capture contains frontend 5xx metrics, frontend-proxy access logs and status-less traces in which product-catalog appears as a callee. The flag change is absent. Honest best output: INSUFFICIENT naming product-catalog as the next thing to check, or PLAUSIBLE product-catalog if trace structure alone supports it."
+      }
+    },
+    {
+      "case_id": "heldout_inc_fault_1787558379",
+      "scenario_id": "scenario_product_catalog_failure",
+      "evidence_sha256": "7f70eee6f16988dda2ac8f85ebf1a2a23a24a72f5544c0f3bd6db201b9dd0128",
+      "expected": {
+        "acceptable_classifications": [
+          "INSUFFICIENT",
+          "PLAUSIBLE"
+        ],
+        "acceptable_root_services_if_named": [
+          "product-catalog"
+        ],
+        "must_mention_in_candidates_or_next_checks": [
+          "product-catalog"
+        ],
+        "confident_wrong_if": [
+          "classification == CONFIRMED (propagation cannot be evaluated: no span status in capture)",
+          "classification == NO_ANOMALY (a fault was active)",
+          "a root service other than product-catalog is named at PLAUSIBLE or above (e.g. frontend, the symptom)",
+          "mechanism == change_induced while no change event is present in the snapshot"
+        ],
+        "rationale": "Capture contains frontend 5xx metrics, frontend-proxy access logs and status-less traces in which product-catalog appears as a callee. The flag change is absent. Honest best output: INSUFFICIENT naming product-catalog as the next thing to check, or PLAUSIBLE product-catalog if trace structure alone supports it."
+      }
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578289",
+      "scenario_id": "scenario_product_catalog_failure",
+      "evidence_sha256": "e00bd285da9829b1dd95336c0e9ed805dfb67354af2d82c8b056ad7e0c21853e",
+      "expected": {
+        "acceptable_classifications": [
+          "INSUFFICIENT",
+          "PLAUSIBLE"
+        ],
+        "acceptable_root_services_if_named": [
+          "product-catalog"
+        ],
+        "must_mention_in_candidates_or_next_checks": [
+          "product-catalog"
+        ],
+        "confident_wrong_if": [
+          "classification == CONFIRMED (propagation cannot be evaluated: no span status in capture)",
+          "classification == NO_ANOMALY (a fault was active)",
+          "a root service other than product-catalog is named at PLAUSIBLE or above (e.g. frontend, the symptom)",
+          "mechanism == change_induced while no change event is present in the snapshot"
+        ],
+        "rationale": "Capture contains frontend 5xx metrics, frontend-proxy access logs and status-less traces in which product-catalog appears as a callee. The flag change is absent. Honest best output: INSUFFICIENT naming product-catalog as the next thing to check, or PLAUSIBLE product-catalog if trace structure alone supports it."
+      }
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578663",
+      "scenario_id": "scenario_product_catalog_failure",
+      "evidence_sha256": "51452af8cc5470ec02dab4eaa7a82635b9307aa714fdc97172785252eb6fa2bb",
+      "expected": {
+        "acceptable_classifications": [
+          "INSUFFICIENT",
+          "PLAUSIBLE"
+        ],
+        "acceptable_root_services_if_named": [
+          "product-catalog"
+        ],
+        "must_mention_in_candidates_or_next_checks": [
+          "product-catalog"
+        ],
+        "confident_wrong_if": [
+          "classification == CONFIRMED (propagation cannot be evaluated: no span status in capture)",
+          "classification == NO_ANOMALY (a fault was active)",
+          "a root service other than product-catalog is named at PLAUSIBLE or above (e.g. frontend, the symptom)",
+          "mechanism == change_induced while no change event is present in the snapshot"
+        ],
+        "rationale": "Capture contains frontend 5xx metrics, frontend-proxy access logs and status-less traces in which product-catalog appears as a callee. The flag change is absent. Honest best output: INSUFFICIENT naming product-catalog as the next thing to check, or PLAUSIBLE product-catalog if trace structure alone supports it."
+      }
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578865",
+      "scenario_id": "scenario_product_catalog_failure",
+      "evidence_sha256": "64de7e0b86e368d669ba90bfd6b6bb4092b5d1409354a2a23949431c1a1e1397",
+      "expected": {
+        "acceptable_classifications": [
+          "INSUFFICIENT",
+          "PLAUSIBLE"
+        ],
+        "acceptable_root_services_if_named": [
+          "product-catalog"
+        ],
+        "must_mention_in_candidates_or_next_checks": [
+          "product-catalog"
+        ],
+        "confident_wrong_if": [
+          "classification == CONFIRMED (propagation cannot be evaluated: no span status in capture)",
+          "classification == NO_ANOMALY (a fault was active)",
+          "a root service other than product-catalog is named at PLAUSIBLE or above (e.g. frontend, the symptom)",
+          "mechanism == change_induced while no change event is present in the snapshot"
+        ],
+        "rationale": "Capture contains frontend 5xx metrics, frontend-proxy access logs and status-less traces in which product-catalog appears as a callee. The flag change is absent. Honest best output: INSUFFICIENT naming product-catalog as the next thing to check, or PLAUSIBLE product-catalog if trace structure alone supports it."
+      }
+    },
+    {
+      "case_id": "heldout_inc_fault_1787579230",
+      "scenario_id": "scenario_product_catalog_failure_neutral",
+      "evidence_sha256": "b0dd9a1437630e08c061b21392a2b61ff56e093072c10d179d07d1cc01881d06",
+      "expected": {
+        "acceptable_classifications": [
+          "INSUFFICIENT",
+          "PLAUSIBLE"
+        ],
+        "acceptable_root_services_if_named": [
+          "product-catalog"
+        ],
+        "must_mention_in_candidates_or_next_checks": [
+          "product-catalog"
+        ],
+        "confident_wrong_if": [
+          "classification == CONFIRMED (propagation cannot be evaluated: no span status in capture)",
+          "classification == NO_ANOMALY (a fault was active)",
+          "a root service other than product-catalog is named at PLAUSIBLE or above (e.g. frontend, the symptom)",
+          "mechanism == change_induced while no change event is present in the snapshot"
+        ],
+        "rationale": "Capture contains frontend 5xx metrics, frontend-proxy access logs and status-less traces in which product-catalog appears as a callee. The flag change is absent. Honest best output: INSUFFICIENT naming product-catalog as the next thing to check, or PLAUSIBLE product-catalog if trace structure alone supports it."
+      }
+    },
+    {
+      "case_id": "heldout_inc_fault_1787579446",
+      "scenario_id": "scenario_recommendation_cache_failure",
+      "evidence_sha256": "b5b355b77ec0ed906766d85a0de72c0aff52ed5ce071514fa2a59db3914edc2b",
+      "expected": {
+        "acceptable_classifications": [
+          "INSUFFICIENT"
+        ],
+        "acceptable_root_services_if_named": [
+          "recommendation"
+        ],
+        "must_mention_in_candidates_or_next_checks": [],
+        "confident_wrong_if": [
+          "classification == CONFIRMED",
+          "classification == NO_ANOMALY presented as 'no anomaly' during a declared incident",
+          "any root service other than recommendation named at PLAUSIBLE or above"
+        ],
+        "rationale": "Masked fault: research measured zero error delta at the edge. Abstention is the correct outcome."
+      }
+    }
+  ]
+}
