@@ -12,3 +12,10 @@
 
 ## Consequences
 A forgotten `WHERE org_id` fails closed. Tests must run against real PostgreSQL (SQLite cannot emulate RLS).
+
+## Amendment 1 (Council C, 2026-10-01)
+* Policies use `NULLIF(current_setting('aegis.org_id', true), '')::uuid` so a pooled connection without a setting yields zero rows rather than an error or a leak; a test asserts that a query without `SET LOCAL` returns nothing.
+* Every `SECURITY DEFINER` function sets `search_path` explicitly; views are created with `security_invoker = true`.
+* A CI catalog test asserts that every table with an `org_id` column has RLS enabled, forced, and at least one policy, and that `aegis_app` owns no table and lacks `BYPASSRLS`.
+* Tests run as `aegis_app`, never as the superuser.
+* Trust statement: RLS is defence in depth inside one deployment. Mutually hostile tenants should use separate deployments; the operator and database owner are trusted.

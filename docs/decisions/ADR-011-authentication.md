@@ -11,3 +11,8 @@
 
 ## Alternatives rejected
 SPA-held access/refresh tokens (exposed to XSS; refresh-token storage problem); local password database (unnecessary credential liability).
+
+## Amendment 1 (Council C, 2026-10-01)
+* **Identity-to-organization binding:** OIDC login never auto-joins an organization on an unverified email claim. Membership comes from an explicit invitation (accepted by a user whose verified email matches) or from an operator-configured mapping (verified email domain or IdP group → organization, role). The first administrator is bootstrapped from operator configuration.
+* **Revocation:** removing a membership or disabling a user deletes their sessions immediately and disables API keys they created for that organization pending admin review. Sessions are revalidated against membership on every request (membership is looked up, not cached in the cookie); sessions have idle (default 8 h) and absolute (default 24 h) expiry.
+* Viewers cannot start investigations or trigger any outbound call (egress and LLM spend are investigator-level actions).

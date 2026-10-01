@@ -18,10 +18,11 @@ Build order follows Council A: core-first vertical slice → wrap the slice with
 | Research packaging fixed (wheel ships `src`), scripts lint-clean, run record archived, OTel fixture pinned | DONE (`44ad5f8`) |
 | Held-out set frozen before pipeline code | DONE (`cf07159`) |
 | Council A run; architecture, ADR-006..015, roadmap written | DONE |
-| Councils B (RCA) and C (security) run; ADRs updated | PLANNED (next) |
+| Councils B (RCA) and C (security) run; ADRs updated (008/009/011/012/014 amended, 016/017 added); security model written | DONE |
+| Held-out expected answers written and hashed before pipeline code | DONE (owner sign-off pending) |
 | License: README claims MIT but no LICENSE file exists | **BLOCKED on owner** — the copyright holder and licence choice are the owner's decision; flagged in the completion report |
 
-## M1 — Pure RCA core, scenario format, benchmark gate · `PLANNED`
+## M1 — Pure RCA core, scenario format, benchmark gate · `IN PROGRESS`
 Depends on: Council B.
 
 | Acceptance criterion |
