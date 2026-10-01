@@ -195,7 +195,7 @@ Severity reflects impact **once the system is multi-user and networked**; today 
 | REL-04 | No retries/backoff anywhere; no circuit breaking; Ollama timeout 600 s; Jaeger client created per call. | I |
 | REL-05 | `_check_budgets` raises → FAILED, so hitting a budget discards partial findings instead of concluding INSUFFICIENT. | I |
 | REL-06 | Persistence is not transactional across incident + hypotheses + evidence; a crash mid-save leaves partial state. | I |
-| REL-07 | Event IDs `evt_{epoch_ms}` with `INSERT OR REPLACE`: two events in the same millisecond overwrite each other (audit loss). Latent on this machine — a full mock run stored 15/15 events because each SQLite write took >1 ms — but guaranteed on faster storage or concurrent writers. | R (collision), not reproduced in a full run |
+| REL-07 | Event/recommendation/hypothesis IDs derived from epoch milliseconds with `INSERT OR REPLACE`: same-millisecond writes overwrite each other. A single sequential mock run stored 15/15 events (each SQLite write took >1 ms), but under concurrency 186 of 200 trials lost a recommendation (S-M5). | R (collision) + S (concurrency) |
 | REL-08 | SQLite connections are never closed (`with sqlite3.connect()` only commits); files stay locked on Windows. | R |
 
 ## 11. Performance findings
@@ -213,7 +213,7 @@ Nothing is deployable: no service process, container, manifest, health endpoint,
 
 | ID | Finding | Basis |
 |---|---|---|
-| DATA-01 | **Evidence is keyed by a global, deterministic ID** (`ev_trace_{trace_id}`, `ev_log_{md5(index::doc)}`, `ev_prom_{md5(query::labels::ts)}`) with `incident_id` as a plain column and `INSERT OR REPLACE`. When two incidents observe the same trace/log line, the later save **moves** the row: the earlier incident loses that evidence. | **R** |
+| DATA-01 | **Evidence is keyed by a global, deterministic ID** (`ev_trace_{trace_id}`, `ev_log_{md5(index::doc)}`, `ev_prom_{md5(query::labels::ts)}`) with `incident_id` as a plain column and `INSERT OR REPLACE`. When two incidents observe the same trace/log line, the later save **moves** the row: the earlier incident loses that evidence. Visible in the real research record: nine of the ten mock `payment-api` runs in `aegis_demo.db` have **zero** evidence rows because each later run took over the shared mock IDs. | **R** + archive |
 | DATA-02 | No tenant/organization, user, or actor columns anywhere. | I |
 | DATA-03 | No foreign keys, no indexes (every `load_incident` is a full scan of evidence/hypotheses/events), JSON stored as TEXT. | I |
 | DATA-04 | Hypotheses are written but never updated; `status`/`confidence`/evidence links are always empty/UNKNOWN. | I |
@@ -291,5 +291,42 @@ This is the draft submitted to Council A. The decided architecture, including wh
 
 ## Appendix A — Independent adversarial security review
 
-*Merged after the review completes; until then this section is intentionally empty and no claim
-in this document depends on it.*
+An isolated sub-agent reviewed `src/` adversarially (telemetry, MCP servers, LLM output and users
+assumed hostile) and wrote proof-of-concept scripts against in-process objects and mock
+providers (no live services, no repository modification). **[S]** = confirmed by its PoC;
+*inspection* = not demonstrated. PoC scripts were kept in the session scratchpad and are not part
+of the repository; the findings below are reproduced in substance by `scripts/audit/` where noted
+and will become regression tests in the product (roadmap M1/M2).
+
+| ID | Sev | Finding | Location | Basis |
+|---|---|---|---|---|
+| S-C1 | Critical | Evidence takeover across incidents/tenants via global deterministic IDs + `INSERT OR REPLACE`; incident A's stored recommendation still cites the moved IDs. | `repository.py:147-165`; ID schemes in `prometheus.py`, `opensearch.py`, `jaeger.py:156`, `mcp/client.py` | [S] + [R] |
+| S-C2 | Critical | Unscoped evidence retrieval: `get_evidence()` with no arguments returns every incident's evidence including raw bodies; `load_evidence(id)` is a global lookup. | `mcp/server.py:195-259`, `repository.py:278-336` | [S] |
+| S-C3 | Critical | Query injection: (a) arbitrary PromQL passes through verbatim; (b) `service_name` `"} or on() secret_metric{x=~".*` breaks out of the label selector so the attacker chooses the metric; (c) Lucene `x) OR (*` neutralises the severity filter; `_exists_:db.password` style field probing. | `prometheus.py:66-69`, `tools.py:266-277,300`, `opensearch.py` | [S] |
+| S-H1 | High | Prompt injection delivery: a log whose `service.name` contains newlines and a forged `=== SYSTEM ===` header lands verbatim in the USER prompt, repeated per occurrence (one document inflated the prompt to ~6.7 KB). Model compliance not tested. | `evidence_summarizer.py:280-326`, `engine.py:331-341` | [S] delivery; inspection for compliance |
+| S-H2 | High | Fabricated citations are the *normal* path: the default prompt never shows evidence IDs to the model, so the keyword fallback always runs; an attacker log containing "error" becomes supporting evidence and the evaluator then reports "Validated 2/2". | `engine.py:169-203,232-241` | [S] + [R] |
+| S-H3 | High | Verification skipped (`VERIFICATION_SKIPPED` event) yet final classification `CONFIRMED`: the guard is overwritten by keyword re-classification. | `engine.py:446-477` | [S] |
+| S-H4 | High | Credentials in endpoint URLs (`http://user:token@host`) leak into provider errors, the LLM prompt, the events table and logs. | `prometheus.py:91-108`, `engine.py:255-267,326-329` | [S] |
+| S-H5 | High | MCP provenance spoofing: a hostile server returning `source_provider="prometheus"` and a Prometheus-shaped ID is ingested as first-party evidence and survives the OTel adapter's re-stamping. | `mcp/client.py`, `mcp/otel_demo.py` | [S] |
+| S-H6 | High | Jaeger path/parameter injection: `trace_id="../../../api/services"` reaches a different endpoint after dot-segment normalisation; `x?limit=9999` injects query parameters. | `jaeger.py:37` | [S] |
+| S-M1 | Medium | Classification keyword logic: `"downstream-db looks healthy"` → NO_ANOMALY; explicit-tag branch returns the first enum value present, so `CLASSIFICATION: INSUFFICIENT (cannot claim CONFIRMED)` → **CONFIRMED**. | `engine.py:140-167` | [S] + [R] |
+| S-M2 | Medium | Unbounded ingestion: one Prometheus reply produced 5,000 evidence items; one MCP response with 10,000 items and a ~500 KB summary was accepted. Advertised `MAXIMUM_EVIDENCE_ITEMS`/`MAXIMUM_CONTEXT_SIZE` are never read. | `tools.py:221-226`, `prometheus.py:110-152`, `mcp/client.py` | [S] |
+| S-M3 | Medium | Tool budget checked only between turns: a single model response with 50 tool calls executed all 50 against `max_tool_calls=12`. | `engine.py:130-138,501-543` | [S] |
+| S-M4 | Medium | Empty/unset MCP allowlist allows every tool, including mutating ones; contradicts the Phase 4D doc. | `mcp/client.py` | [S] |
+| S-M5 | Medium | Concurrent persistence loss: 200 trials × 2 investigations wrote 400 recommendations, 214 survived; one tenant's recommendation vanished in 186/200 trials (`rec_{ms}`, `evt_{ms}`, `hypo_{ms}_{i}` collisions). | `repository.py:191`, `engine.py:81,426,577` | [S] |
+| S-M6 | Medium | Secret-looking attributes (`db.password`) persisted verbatim and sent to the model. | `opensearch.py:159-176`, `repository.py:147-165` | [S] |
+| S-L1 | Low | A custom (MCP) tool named like a built-in replaces the built-in handler; the model sees duplicate definitions. | `tools.py:90-103` | [S] |
+| S-L2 | Low | `OTelDemoMCPAdapter.endpoint_url` has no effect; the client always spawns a local stdio server. | `mcp/otel_demo.py`, `mcp/client.py` | [S] |
+| S-L3 | Low | 600 s per-call Ollama timeout; the investigation deadline is only checked between turns. | `ollama.py:285`, `engine.py:135` | inspection |
+| S-L4 | Low | Exception text is appended to the conversation and stored as the failure reason. | `engine.py:121-123` | inspection |
+
+Cross-cutting SSRF: all endpoints are freely configurable with no validation (inspection); httpx's
+default `follow_redirects=False` was verified, so redirect-based SSRF is not available today.
+Documentation contradicted: `docs/phase-4d-mcp-hardening.md` states queries are "sanitized" and
+the allowlist "explicit" (S-C3, S-M4).
+
+### Effect on this audit
+* REL-07 (audit/recommendation loss) is upgraded from *latent* to **confirmed under concurrency** (S-M5).
+* SEC-02/03/04/05/06 are confirmed (S-H1, S-C3, S-H6, S-M4, S-H5). New items: S-H3, S-H4, S-M1(b), S-M2, S-M3, S-L1.
+* Every [S] item becomes a regression test against the product (backend `tests/security/`), so the
+  product is checked against exactly these attacks.
