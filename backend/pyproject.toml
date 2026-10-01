@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aegis-platform"
+version = "0.2.0"
+description = "Aegis: evidence-grounded incident investigation platform (production package)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary until the owner selects a licence" }
+dependencies = [
+    "fastapi>=0.142,<0.143",
+    "uvicorn[standard]>=0.54,<0.55",
+    "pydantic>=2.13,<3",
+    "pydantic-settings>=2.15,<3",
+    "sqlalchemy[asyncio]>=2.1,<2.2",
+    "asyncpg>=0.31,<0.32",
+    "alembic>=1.20,<1.21",
+    "httpx>=0.28,<0.29",
+    "cryptography>=50,<51",
+    "pyjwt[crypto]>=2.15,<3",
+    "prometheus-client>=0.26,<0.27",
+    "opentelemetry-sdk>=1.45,<1.46",
+    "opentelemetry-exporter-otlp-proto-http>=1.45,<1.46",
+    "pyyaml>=6.0,<7",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=2.2,<2.3"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1,<10",
+    "pytest-asyncio>=1.4,<2",
+    "hypothesis>=6.168,<7",
+    "respx>=0.23,<0.24",
+    "mypy>=2.3,<3",
+    "ruff>=0.16,<0.17",
+    "types-pyyaml>=6.0",
+]
+
+[project.scripts]
+aegis = "aegis.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["aegis"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "db: requires PostgreSQL (AEGIS_TEST_DATABASE_URL)",
+    "live: requires live external services (demo stack, Ollama)",
+]
+filterwarnings = ["error::DeprecationWarning:aegis.*"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+packages = ["aegis"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM", "PTH", "T20"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S311"]
