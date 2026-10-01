@@ -1,0 +1,221 @@
+{
+  "frozen_at": "2026-10-01",
+  "frozen_before": "any production RCA pipeline code existed (branch production/platform, after commit 44ad5f8)",
+  "source": "eval/archive/aegis_demo_db_export.json.gz (live OpenTelemetry Demo captures, Phases 2E-3)",
+  "provenance": "REAL telemetry captured from Prometheus/OpenSearch/Jaeger by the research engine",
+  "known_limitations": [
+    "Trace evidence has no span status: the research Jaeger adapter discarded tags (audit AI-04).",
+    "Evidence rows shared between runs were re-attributed to the later run (audit DATA-01), so some runs are missing modalities (e.g. no logs).",
+    "Telemetry windows are now()-15min at investigation time (audit AI-03), not aligned to fault onset.",
+    "Ground truth labels were assigned from the scenario definitions by the engineering agent, not by an independent human."
+  ],
+  "rules": "Cases are used only for evaluation. No pipeline thresholds, weights or prompts may be tuned against them; tuning uses eval/scenarios only.",
+  "cases": [
+    {
+      "case_id": "heldout_inc_demo_1787555948",
+      "source_incident_id": "inc_demo_1787555948",
+      "scenario_id": "scenario_live_frontend_001",
+      "incident_title": "Frontend Anomaly Investigation",
+      "incident_description": "Routine anomaly investigation for frontend service.",
+      "incident_start_time": "2026-08-24T07:19:08.933184+00:00",
+      "reported_service": "frontend",
+      "evidence_count": 155,
+      "evidence_by_type": {
+        "LOG": 100,
+        "METRIC": 5,
+        "TRACE": 50
+      },
+      "evidence_sha256": "13678eff72fd98ddd391614626b92aec28a5b86ac0fc48f05811aee72b048181",
+      "ground_truth": {
+        "expected_classification": [
+          "NO_ANOMALY",
+          "INSUFFICIENT"
+        ],
+        "root_cause_service": null,
+        "fault_class": null,
+        "note": "Healthy baseline: no fault injected."
+      },
+      "research_engine_classification": "INSUFFICIENT"
+    },
+    {
+      "case_id": "heldout_inc_fault_1787558017",
+      "source_incident_id": "inc_fault_1787558017",
+      "scenario_id": "scenario_product_catalog_failure",
+      "incident_title": "Elevated Error Rate on Product Pages",
+      "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages. Product details fail to load.",
+      "incident_start_time": "2026-08-24T07:53:37.865001+00:00",
+      "reported_service": "frontend",
+      "evidence_count": 159,
+      "evidence_by_type": {
+        "LOG": 100,
+        "METRIC": 9,
+        "TRACE": 50
+      },
+      "evidence_sha256": "f3166935122a768af9bf7e41d417aef115f34b753af5f66bac524742297e72be",
+      "ground_truth": {
+        "expected_classification": [
+          "CONFIRMED",
+          "PLAUSIBLE"
+        ],
+        "root_cause_service": "product-catalog",
+        "fault_class": "feature_flag",
+        "note": "flagd productCatalogFailure=on (targeting rule removed, see config/otel-demo-fixture.patch). Frontend surfaces HTTP 500s."
+      },
+      "research_engine_classification": "PLAUSIBLE"
+    },
+    {
+      "case_id": "heldout_inc_fault_1787558379",
+      "source_incident_id": "inc_fault_1787558379",
+      "scenario_id": "scenario_product_catalog_failure",
+      "incident_title": "Elevated Error Rate on Product Pages",
+      "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages. Product details fail to load.",
+      "incident_start_time": "2026-08-24T07:59:39.833726+00:00",
+      "reported_service": "frontend",
+      "evidence_count": 259,
+      "evidence_by_type": {
+        "LOG": 200,
+        "METRIC": 9,
+        "TRACE": 50
+      },
+      "evidence_sha256": "7f70eee6f16988dda2ac8f85ebf1a2a23a24a72f5544c0f3bd6db201b9dd0128",
+      "ground_truth": {
+        "expected_classification": [
+          "CONFIRMED",
+          "PLAUSIBLE"
+        ],
+        "root_cause_service": "product-catalog",
+        "fault_class": "feature_flag",
+        "note": "flagd productCatalogFailure=on (targeting rule removed, see config/otel-demo-fixture.patch). Frontend surfaces HTTP 500s."
+      },
+      "research_engine_classification": "CONFIRMED"
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578289",
+      "source_incident_id": "inc_fault_1787578289",
+      "scenario_id": "scenario_product_catalog_failure",
+      "incident_title": "Elevated Error Rate on Product Pages",
+      "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages. Product details fail to load.",
+      "incident_start_time": "2026-08-24T13:31:29.047802+00:00",
+      "reported_service": "frontend",
+      "evidence_count": 163,
+      "evidence_by_type": {
+        "LOG": 100,
+        "METRIC": 13,
+        "TRACE": 50
+      },
+      "evidence_sha256": "e00bd285da9829b1dd95336c0e9ed805dfb67354af2d82c8b056ad7e0c21853e",
+      "ground_truth": {
+        "expected_classification": [
+          "CONFIRMED",
+          "PLAUSIBLE"
+        ],
+        "root_cause_service": "product-catalog",
+        "fault_class": "feature_flag",
+        "note": "flagd productCatalogFailure=on (targeting rule removed, see config/otel-demo-fixture.patch). Frontend surfaces HTTP 500s."
+      },
+      "research_engine_classification": "CONFIRMED"
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578663",
+      "source_incident_id": "inc_fault_1787578663",
+      "scenario_id": "scenario_product_catalog_failure",
+      "incident_title": "Elevated Error Rate on Product Pages",
+      "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages. Product details fail to load.",
+      "incident_start_time": "2026-08-24T13:37:43.663695+00:00",
+      "reported_service": "frontend",
+      "evidence_count": 66,
+      "evidence_by_type": {
+        "METRIC": 16,
+        "TRACE": 50
+      },
+      "evidence_sha256": "51452af8cc5470ec02dab4eaa7a82635b9307aa714fdc97172785252eb6fa2bb",
+      "ground_truth": {
+        "expected_classification": [
+          "CONFIRMED",
+          "PLAUSIBLE"
+        ],
+        "root_cause_service": "product-catalog",
+        "fault_class": "feature_flag",
+        "note": "flagd productCatalogFailure=on (targeting rule removed, see config/otel-demo-fixture.patch). Frontend surfaces HTTP 500s."
+      },
+      "research_engine_classification": "PLAUSIBLE"
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578865",
+      "source_incident_id": "inc_fault_1787578865",
+      "scenario_id": "scenario_product_catalog_failure",
+      "incident_title": "Elevated Error Rate on Product Pages",
+      "incident_description": "Users are experiencing HTTP 500 errors when loading product catalog pages. Product details fail to load.",
+      "incident_start_time": "2026-08-24T13:41:05.576126+00:00",
+      "reported_service": "frontend",
+      "evidence_count": 256,
+      "evidence_by_type": {
+        "LOG": 200,
+        "METRIC": 6,
+        "TRACE": 50
+      },
+      "evidence_sha256": "64de7e0b86e368d669ba90bfd6b6bb4092b5d1409354a2a23949431c1a1e1397",
+      "ground_truth": {
+        "expected_classification": [
+          "CONFIRMED",
+          "PLAUSIBLE"
+        ],
+        "root_cause_service": "product-catalog",
+        "fault_class": "feature_flag",
+        "note": "flagd productCatalogFailure=on (targeting rule removed, see config/otel-demo-fixture.patch). Frontend surfaces HTTP 500s."
+      },
+      "research_engine_classification": "NO_ANOMALY"
+    },
+    {
+      "case_id": "heldout_inc_fault_1787579230",
+      "source_incident_id": "inc_fault_1787579230",
+      "scenario_id": "scenario_product_catalog_failure_neutral",
+      "incident_title": "Service Degradation Anomaly Detected",
+      "incident_description": "Automated monitoring detected elevated HTTP 500 error rates and increased request latency across user-facing endpoints.",
+      "incident_start_time": "2026-08-24T13:47:10.299582+00:00",
+      "reported_service": "frontend",
+      "evidence_count": 58,
+      "evidence_by_type": {
+        "METRIC": 8,
+        "TRACE": 50
+      },
+      "evidence_sha256": "b0dd9a1437630e08c061b21392a2b61ff56e093072c10d179d07d1cc01881d06",
+      "ground_truth": {
+        "expected_classification": [
+          "CONFIRMED",
+          "PLAUSIBLE",
+          "INSUFFICIENT"
+        ],
+        "root_cause_service": "product-catalog",
+        "fault_class": "feature_flag",
+        "note": "Same fault as above with a neutral incident description."
+      },
+      "research_engine_classification": "INSUFFICIENT"
+    },
+    {
+      "case_id": "heldout_inc_fault_1787579446",
+      "source_incident_id": "inc_fault_1787579446",
+      "scenario_id": "scenario_recommendation_cache_failure",
+      "incident_title": "Elevated Error Rate on Frontend",
+      "incident_description": "Users are experiencing increased errors when browsing product pages. Recommendation results are intermittently unavailable.",
+      "incident_start_time": "2026-08-24T13:50:46.386218+00:00",
+      "reported_service": "frontend",
+      "evidence_count": 66,
+      "evidence_by_type": {
+        "METRIC": 16,
+        "TRACE": 50
+      },
+      "evidence_sha256": "b5b355b77ec0ed906766d85a0de72c0aff52ed5ce071514fa2a59db3914edc2b",
+      "ground_truth": {
+        "expected_classification": [
+          "PLAUSIBLE",
+          "INSUFFICIENT"
+        ],
+        "root_cause_service": "recommendation",
+        "fault_class": "feature_flag",
+        "note": "flagd recommendationCacheFailure=on; research found 0 error-log/trace delta at the edge (masked by frontend fallback). Abstention is an acceptable outcome."
+      },
+      "research_engine_classification": "PLAUSIBLE"
+    }
+  ]
+}
