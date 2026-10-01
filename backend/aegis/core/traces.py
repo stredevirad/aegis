@@ -178,3 +178,62 @@ def has_parent_links(spans: list[Span]) -> bool:
 def exemplar_traces(stats: OriginStats, service: str, limit: int = 3) -> list[str]:
     ids = sorted(t for t, origins in stats.origins_by_trace.items() if service in origins)
     return ids[:limit]
+
+
+@dataclass
+class LatencyStats:
+    threshold_ms: float | None
+    slow_traces: int = 0
+    # service -> number of slow traces in which it accounts for the most exclusive time
+    dominant_counts: Counter[str] = field(default_factory=Counter)
+    slow_by_trace: dict[str, str] = field(default_factory=dict)  # trace id -> dominant service
+
+    def share(self, service: str) -> float | None:
+        if self.slow_traces == 0:
+            return None
+        return self.dominant_counts[service] / self.slow_traces
+
+
+def _root(group: TraceGroup) -> Span:
+    ids = {s.span_id for s in group.spans}
+    roots = [s for s in group.spans if not s.parent_span_id or s.parent_span_id not in ids]
+    return max(roots or group.spans, key=lambda s: s.duration_ms)
+
+
+def root_duration_threshold(
+    baseline: list[TraceGroup], latency_ratio: float, floor_ms: float
+) -> float | None:
+    """Duration above which an incident trace counts as slow (None without a baseline)."""
+    durations = sorted(_root(g).duration_ms for g in baseline)
+    if len(durations) < 5:
+        return None
+    p95 = durations[min(len(durations) - 1, int(0.95 * len(durations)))]
+    return max(p95 * latency_ratio, p95 + floor_ms)
+
+
+def latency_origins(groups: list[TraceGroup], threshold_ms: float | None) -> LatencyStats:
+    """For slow traces, the service accounting for the most exclusive (self) time.
+
+    Exclusive time of a span = its duration minus its children's durations. A CLIENT span
+    without collected children is time spent in its peer, so it is attributed to the peer
+    (this is how an uninstrumented database shows up). Requires parent links.
+    """
+    stats = LatencyStats(threshold_ms=threshold_ms)
+    if threshold_ms is None:
+        return stats
+    for g in groups:
+        if _root(g).duration_ms < threshold_ms:
+            continue
+        excl: dict[str, float] = defaultdict(float)
+        for s in g.spans:
+            kids = g.children.get(s.span_id, [])
+            own = max(0.0, s.duration_ms - sum(k.duration_ms for k in kids))
+            to_peer = s.kind is SpanKind.CLIENT and s.peer_service and not kids
+            excl[s.peer_service if to_peer and s.peer_service else s.service] += own
+        if not excl:
+            continue
+        dominant = max(sorted(excl), key=lambda k: excl[k])
+        stats.slow_traces += 1
+        stats.dominant_counts[dominant] += 1
+        stats.slow_by_trace[g.trace_id] = dominant
+    return stats

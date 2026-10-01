@@ -57,6 +57,7 @@ class ServiceSpec(_Spec):
     # callee -> alternative callee used when the callee is disabled (masked fallback)
     fallback: dict[str, str] = Field(default_factory=dict)
     saturation: float | None = None  # baseline utilisation if the service reports it
+    own_rps: float = 0.0  # independent traffic (e.g. a batch job not called by the entry)
 
 
 class FaultSpec(_Spec):
@@ -102,6 +103,7 @@ class TelemetrySpec(_Spec):
     logs_status: CollectionStatus = CollectionStatus.OK
     traces_status: CollectionStatus = CollectionStatus.OK
     configured_edges: bool = False
+    metrics_services: list[str] | None = None  # emit metrics only for these services
 
 
 class ExpectedSpec(_Spec):
@@ -114,6 +116,7 @@ class ExpectedSpec(_Spec):
 
 
 class ScenarioSpec(_Spec):
+    synthetic: Literal[True] = True
     id: str
     title: str
     category: str
@@ -233,6 +236,9 @@ class Generator:
                 walk(c, n, depth + 1)
 
         walk(self.spec.entry, self.spec.rps * st.traffic * self.bucket.total_seconds(), 0)
+        for name, svc in self.services.items():
+            if svc.own_rps > 0:
+                walk(name, svc.own_rps * self.bucket.total_seconds(), 0)
         return counts
 
     # -- generation -----------------------------------------------------------------------
@@ -277,9 +283,13 @@ class Generator:
                 for k in range(self.spec.traces_per_bucket):
                     start = ts + self.bucket * (k / self.spec.traces_per_bucket)
                     spans += self._trace(start, st)
+                    if k % 3 == 0:
+                        spans += self._independent_traces(start, st)
             ts += self.bucket
         if tel.metrics:
             for (svc_name, signal), points in sorted(series.items()):
+                if tel.metrics_services is not None and svc_name not in tel.metrics_services:
+                    continue
                 metrics.append(
                     MetricSeries(
                         service=svc_name,
@@ -413,6 +423,18 @@ class Generator:
             return failed, elapsed
 
         visit(self.spec.entry, None, start, 0)
+        return out
+
+    def _independent_traces(self, start: datetime, st: _State) -> list[Span]:
+        out: list[Span] = []
+        for name, svc in sorted(self.services.items()):
+            if svc.own_rps > 0 and svc.instrumented:
+                entry = self.spec.entry
+                self.spec = self.spec.model_copy(update={"entry": name})
+                try:
+                    out += self._trace(start, st)
+                finally:
+                    self.spec = self.spec.model_copy(update={"entry": entry})
         return out
 
     def _fault_template(self, name: str, st: _State) -> str | None:

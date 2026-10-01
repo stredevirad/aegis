@@ -28,13 +28,17 @@ from aegis.core.result import (
     Verdict,
 )
 from aegis.core.topology import Graph
-from aegis.core.traces import OriginStats
+from aegis.core.traces import LatencyStats, OriginStats
 
 RULES: dict[str, str] = {
     "R1": "A service in which at least half of the failing traces end (deepest failing span) leads.",
     "R1b": (
         "Services that are each the origin of a substantial share of failing traces and do not "
         "depend on each other lead together (independent faults)."
+    ),
+    "R1L": (
+        "A service that accounts for most of the time spent in at least half of the slow "
+        "traces leads."
     ),
     "R2": (
         "An anomalous service with a recorded change shortly before its onset and no anomalous "
@@ -67,6 +71,7 @@ class Context:
     graph: Graph
     facts: dict[str, ServiceFacts]
     origin: OriginStats
+    latency: LatencyStats
     co_occurrence: dict[str, set[str]]
     change_feed_ok: bool
     own_telemetry: set[str]
@@ -116,7 +121,10 @@ def _pool(ctx: Context) -> tuple[set[str], set[str]]:
             pool.add(s)
     focus = set(ctx.request.focus_services)
     components = ctx.graph.components(pool)
-    if not focus:
+    focus_known = any(ctx.graph.callees.get(f) or ctx.graph.callers.get(f) for f in focus)
+    if not focus or not focus_known:
+        # Without topology for the focus service, "not connected" means "unknown", not
+        # "unrelated": keep every anomaly in scope.
         return pool, set()
     primary: set[str] = set()
     for comp in components:
@@ -152,6 +160,16 @@ def _decide_component(ctx: Context, comp: set[str]) -> list[tuple[str, str]]:
     ):
         return [(s, "R1b") for s in substantial]
     ctx.trace.append("R1/R1b: no dominant error origin")
+
+    r1l = sorted(
+        s
+        for s in comp & anomalous
+        if (ctx.latency.share(s) or 0.0) >= tol.error_origin_lead_share
+        and ctx.latency.dominant_counts[s] >= tol.min_signature_count
+    )
+    if len(r1l) == 1:
+        return [(r1l[0], "R1L")]
+    ctx.trace.append("R1L: no service dominates the slow traces")
 
     r2 = sorted(
         s
@@ -297,34 +315,37 @@ def _checks(ctx: Context, service: str, leaders: set[str]) -> list[Check]:
                 )
             )
 
-    # Propagation: failing traces that touch it or its dependents end in it.
-    if ctx.origin.determined_traces == 0:
-        out.append(
-            _check(
-                CheckName.PROPAGATION,
-                CheckState.NOT_EVALUABLE,
-                "no failing traces with known span status",
-            )
-        )
-    else:
+    # Propagation, by failure family: errors use error origins, latency/saturation use
+    # latency attribution. A handful of background traces must never decide this check.
+    fams = f.families()
+    min_traces = tol.min_signature_count
+    if "error" in fams:
         involved = {service} | dependents
         relevant = [
             t
             for t, origins in ctx.origin.origins_by_trace.items()
             if service in origins or any(t in ctx.origin.failing_in.get(d, set()) for d in involved)
         ]
-        if not relevant:
+        ids = [f.origin_evidence] if f.origin_evidence else []
+        if ctx.origin.determined_traces == 0:
             out.append(
                 _check(
                     CheckName.PROPAGATION,
                     CheckState.NOT_EVALUABLE,
-                    "no failing traces involve it or its dependents",
+                    "no failing traces with known span status",
+                )
+            )
+        elif len(relevant) < min_traces:
+            out.append(
+                _check(
+                    CheckName.PROPAGATION,
+                    CheckState.NOT_EVALUABLE,
+                    f"only {len(relevant)} failing trace(s) involve it or its dependents",
                 )
             )
         else:
             hits = sum(1 for t in relevant if service in ctx.origin.origins_by_trace[t])
             share = hits / len(relevant)
-            ids = [f.origin_evidence] if f.origin_evidence else []
             if share >= tol.propagation_pass_share:
                 out.append(
                     _check(
@@ -357,6 +378,64 @@ def _checks(ctx: Context, service: str, leaders: set[str]) -> list[Check]:
                         ids,
                     )
                 )
+    elif fams & {"latency", "saturation"}:
+        lat = ctx.latency
+        ids = [a.evidence_id for a in f.anomalies if a.family in ("latency", "saturation")]
+        if lat.threshold_ms is None:
+            out.append(
+                _check(
+                    CheckName.PROPAGATION,
+                    CheckState.NOT_EVALUABLE,
+                    "no trace baseline (or no parent links) to attribute latency",
+                )
+            )
+        elif lat.slow_traces < min_traces:
+            out.append(
+                _check(
+                    CheckName.PROPAGATION,
+                    CheckState.NOT_EVALUABLE,
+                    f"only {lat.slow_traces} slow trace(s) to attribute",
+                )
+            )
+        else:
+            hits = lat.dominant_counts[service]
+            share = hits / lat.slow_traces
+            if share >= tol.propagation_pass_share:
+                out.append(
+                    _check(
+                        CheckName.PROPAGATION,
+                        CheckState.PASS,
+                        f"it accounts for most of the time in {hits}/{lat.slow_traces} slow traces",
+                        ids,
+                    )
+                )
+            elif share <= tol.propagation_fail_share:
+                top = [s for s, _ in lat.dominant_counts.most_common(3)]
+                out.append(
+                    _check(
+                        CheckName.PROPAGATION,
+                        CheckState.FAIL,
+                        f"it dominates only {hits}/{lat.slow_traces} slow traces; "
+                        f"most time is spent in {top}",
+                    )
+                )
+            else:
+                out.append(
+                    _check(
+                        CheckName.PROPAGATION,
+                        CheckState.NOT_EVALUABLE,
+                        f"mixed: it dominates {hits}/{lat.slow_traces} slow traces",
+                        ids,
+                    )
+                )
+    else:
+        out.append(
+            _check(
+                CheckName.PROPAGATION,
+                CheckState.NOT_APPLICABLE,
+                "no error or latency anomaly to trace",
+            )
+        )
 
     # Isolation and downstream evaluation.
     callees = sorted(ctx.graph.callees.get(service, set()))

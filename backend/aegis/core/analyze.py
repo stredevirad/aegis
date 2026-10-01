@@ -19,6 +19,8 @@ from aegis.core.traces import (
     error_origins,
     group_traces,
     has_parent_links,
+    latency_origins,
+    root_duration_threshold,
 )
 
 # Evidence kinds dropped first when the evidence cap is reached.
@@ -52,6 +54,12 @@ def analyze(snapshot: TelemetrySnapshot, request: AnalysisRequest) -> Analysis:
         if baseline_groups:
             break
     origin = error_origins(incident_groups)
+    latency = latency_origins(
+        incident_groups,
+        root_duration_threshold(baseline_groups, tol.latency_ratio, tol.latency_floor_ms)
+        if has_parent_links(snapshot.spans)
+        else None,
+    )
     base_origin = error_origins(baseline_groups)
     inc_edges = edges_from_spans(incident_groups)
     base_edges = edges_from_spans(baseline_groups)
@@ -84,6 +92,7 @@ def analyze(snapshot: TelemetrySnapshot, request: AnalysisRequest) -> Analysis:
         graph=graph,
         facts=facts,
         origin=origin,
+        latency=latency,
         co_occurrence=co_occurrence(incident_groups) if not links else {},
         change_feed_ok=snapshot.outcome(Modality.CHANGES)
         in (CollectionStatus.OK, CollectionStatus.PARTIAL),
