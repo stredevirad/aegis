@@ -37,21 +37,21 @@ Depends on: Council B (done).
 | Structured evaluator alongside the research evaluator | DONE (`aegis.benchmark.evaluate`) |
 | Benchmark runner + CI gate; held-out set evaluated and reported, never tuned on | DONE — synthetic 15/15 (regression gate, not an accuracy estimate); held-out run 1 (clean): 0 confident-wrong; run 2 reported as post-hoc |
 
-## M2 — Persistence, jobs, API, auth, tenancy, audit, ingestion (the slice backbone) · `PLANNED`
+## M2 — Persistence, jobs, API, auth, tenancy, audit, ingestion (the slice backbone) · `IN PROGRESS`
 Depends on: M1, Council C.
 
-| Acceptance criterion |
-|---|
-| PostgreSQL schema via Alembic; owner vs `aegis_app` roles; RLS + `FORCE` on every tenant table; claim and auth-lookup `SECURITY DEFINER` functions |
-| Cross-tenant leak tests for every repository and route |
-| Job queue: transactional enqueue, `SKIP LOCKED` claim with per-org cap, leases/heartbeats, bounded jittered retries, cancellation, idempotency, one active investigation per incident; tests for duplicate jobs, worker crash (lease expiry), cancellation |
-| Worker runs snapshot collection (replay source first) → core → persists graph and verdict → events |
-| REST `/api/v1` (incidents, alerts, investigations, evidence, events, change-events, audit, me, organizations, users/memberships, api-keys) with pagination, filtering, sorting, stable error schema, request IDs, OpenAPI |
-| SSE investigation stream (event-table polling) + REST polling fallback |
-| OIDC BFF login with sessions, CSRF defence, API keys, RBAC matrix enforced server-side, tested per route |
-| Alertmanager + generic webhook ingestion with ingest-scoped keys, fingerprint dedup, grouping window, auto-investigation once per incident with cooldown |
-| Hash-chained append-only audit (no UPDATE/DELETE grants), verification endpoint |
-| Configuration system with environment profiles and startup validation that rejects unsafe production settings |
+| Acceptance criterion | Status |
+|---|---|
+| PostgreSQL schema via Alembic; owner vs `aegis_app` roles; RLS + `FORCE` on every tenant table; claim and auth-lookup `SECURITY DEFINER` functions | PARTIAL — migration 0001 (identity, incidents, investigations, jobs, events, snapshots, evidence graph, audit) verified by `tests/db`; remaining tables arrive with their consumers |
+| Cross-tenant leak tests for every repository and route | PARTIAL — SQL-level and pooled-connection tests exist; repository and route tests follow the code |
+| Job queue: transactional enqueue, `SKIP LOCKED` claim with per-org cap, leases/heartbeats, bounded jittered retries, cancellation, idempotency, one active investigation per incident; tests for duplicate jobs, worker crash (lease expiry), cancellation | PARTIAL — claim function, per-org cap under concurrency and one-active constraint verified; Python queue layer PLANNED |
+| Worker runs snapshot collection (replay source first) → core → persists graph and verdict → events | PLANNED |
+| REST `/api/v1` (incidents, alerts, investigations, evidence, events, change-events, audit, me, organizations, users/memberships, api-keys) with pagination, filtering, sorting, stable error schema, request IDs, OpenAPI | PLANNED |
+| SSE investigation stream (event-table polling) + REST polling fallback | PLANNED |
+| OIDC BFF login with sessions, CSRF defence, API keys, RBAC matrix enforced server-side, tested per route | PLANNED |
+| Alertmanager + generic webhook ingestion with ingest-scoped keys, fingerprint dedup, grouping window, auto-investigation once per incident with cooldown | PLANNED |
+| Hash-chained append-only audit (no UPDATE/DELETE grants), verification endpoint | PARTIAL — chain trigger, append-only grants, verify function and timezone independence verified; endpoint PLANNED |
+| Configuration system with environment profiles and startup validation that rejects unsafe production settings | PARTIAL — settings + validation verified (`tests/test_config.py`, profile defaults to production); startup wiring follows the API |
 
 ## M3 — LLM adjudication · `PLANNED`
 Depends on: M1, M2.
