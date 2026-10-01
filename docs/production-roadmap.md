@@ -22,20 +22,20 @@ Build order follows Council A: core-first vertical slice → wrap the slice with
 | Held-out expected answers written and hashed before pipeline code | DONE (owner sign-off pending) |
 | License: README claims MIT but no LICENSE file exists | **BLOCKED on owner** — the copyright holder and licence choice are the owner's decision; flagged in the completion report |
 
-## M1 — Pure RCA core, scenario format, benchmark gate · `IN PROGRESS`
-Depends on: Council B.
+## M1 — Pure RCA core, scenario format, benchmark gate · `DONE` (LLM-free part; see notes)
+Depends on: Council B (done).
 
-| Acceptance criterion |
-|---|
-| `backend/` package `aegis` (distribution `aegis-platform`) with locked dependencies, ruff format + lint, mypy strict, pytest |
-| Import-boundary test: no `aegis` module imports `src` |
-| Versioned `TelemetrySnapshot` / `AnalysisRequest` / `Analysis` contract; `analyze()` performs no I/O and reads no clock (test asserts it) |
-| Regression tests for every confirmed research defect expressed against the core contract (evidence identity, window explicitness, span status, no fabricated citations, no keyword classification, bounded inputs) |
-| Stages: coverage, topology from spans, service signals, baseline anomaly, trace error origin, log signatures, change correlation, candidates, verification checks, verdict with confidence ceiling |
-| Redaction functions with tests |
-| Scenario format (synthetic, labelled) with structured ground truth; first scenarios: healthy baseline, HTTP 5xx spike, DB latency, downstream outage, deployment regression, insufficient evidence, red herring, prompt injection in logs, partial telemetry outage |
-| Structured evaluator (component, mechanism class, classification, citation validity, abstention correctness, calibration) alongside the research evaluator |
-| Benchmark runner + CI gate (deterministic mode); held-out set evaluated and reported, never tuned on |
+| Acceptance criterion | Status |
+|---|---|
+| `backend/` package `aegis` (distribution `aegis-platform`) with locked dependencies, ruff format + lint, mypy strict, pytest | DONE |
+| Import-boundary test: no `aegis` module imports `src` | DONE (`tests/test_import_boundary.py`) |
+| Versioned snapshot/request/analysis contract; `analyze()` performs no I/O and reads no clock | DONE (`tests/core/test_purity.py`, determinism test) |
+| Regression tests for every confirmed research defect against the core contract | DONE (`tests/core/test_research_defect_regressions.py`) |
+| Stages incl. coverage, topology, signals, baseline anomaly, error origin, latency attribution, log signatures, change correlation, decision list, tri-state checks, verdict with support level | DONE (`docs/rca.md`) |
+| Redaction functions with tests | **MOVED to M2/M4** (redaction is applied at collection time, which is built there) |
+| Scenario format with structured ground truth; healthy, 5xx, DB latency, downstream outage, deployment regression, insufficient evidence, red herring, prompt injection, partial outage (+ masked fallback, saturation, multi-fault, intermittent, flag ± change feed) | DONE (15 scenarios) |
+| Structured evaluator alongside the research evaluator | DONE (`aegis.benchmark.evaluate`) |
+| Benchmark runner + CI gate; held-out set evaluated and reported, never tuned on | DONE — synthetic 15/15 (regression gate, not an accuracy estimate); held-out run 1 (clean): 0 confident-wrong; run 2 reported as post-hoc |
 
 ## M2 — Persistence, jobs, API, auth, tenancy, audit, ingestion (the slice backbone) · `PLANNED`
 Depends on: M1, Council C.

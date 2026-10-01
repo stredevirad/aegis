@@ -229,9 +229,10 @@ def run(root: Path) -> dict[str, Any]:
     manifest = json.loads((root / "eval/heldout/manifest.json").read_text(encoding="utf-8"))
     expected_doc = json.loads((root / "eval/heldout/expected.json").read_text(encoding="utf-8"))
     expected = {c["case_id"]: c["expected"] for c in expected_doc["cases"]}
-    archive = json.load(
-        gzip.open(root / "eval/archive/aegis_demo_db_export.json.gz", "rt", encoding="utf-8")
-    )
+    with gzip.open(
+        root / "eval/archive/aegis_demo_db_export.json.gz", "rt", encoding="utf-8"
+    ) as fh:
+        archive = json.load(fh)
     evidence_by_incident: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in archive["tables"]["evidence"]:
         evidence_by_incident[row["incident_id"]].append(row)

@@ -161,13 +161,17 @@ def edges_from_spans(groups: list[TraceGroup]) -> EdgeCounts:
     return EdgeCounts(calls, errors, len(groups), frozenset(inferred), dict(latencies), known)
 
 
-def co_occurrence(groups: list[TraceGroup]) -> dict[str, set[str]]:
-    """Services seen in the same traces. Used only when parent links are unavailable."""
-    seen: dict[str, set[str]] = defaultdict(set)
+def co_occurrence(groups: list[TraceGroup]) -> dict[str, Counter[str]]:
+    """How often other services appear in the same traces as each service.
+
+    Used only when parent links are unavailable, to rank which possible dependencies to
+    check first (most frequently involved first)."""
+    seen: dict[str, Counter[str]] = defaultdict(Counter)
     for g in groups:
         services = {s.service for s in g.spans}
         for svc in services:
-            seen[svc] |= services - {svc}
+            for other in services - {svc}:
+                seen[svc][other] += 1
     return seen
 
 

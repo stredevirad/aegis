@@ -71,6 +71,9 @@ class FaultSpec(_Spec):
     traffic_multiplier: float = 4.0
     log_template: str | None = None
     instances: list[int] | None = None  # affected instance indexes (None = all)
+    # Fraction of time buckets in which the fault is active (intermittent faults, e.g. only
+    # requests for some products fail). None = always active within its window.
+    duty_cycle: float | None = None
 
 
 class ChangeSpec(_Spec):
@@ -176,9 +179,14 @@ class Generator:
         sat = {n: (s.saturation or 0.0) for n, s in self.services.items()}
         disabled: set[str] = set()
         traffic = 1.0
-        for f in [*self.spec.faults, *self.spec.decoys]:
+        bucket_index = int((ts - self.start).total_seconds() // self.bucket.total_seconds())
+        for k, f in enumerate([*self.spec.faults, *self.spec.decoys]):
             if not _active(f, minute):
                 continue
+            if f.duty_cycle is not None:
+                draw = random.Random(self.spec.seed * 100_003 + k * 7_919 + bucket_index).random()
+                if draw >= f.duty_cycle:
+                    continue
             if f.type == "errors":
                 own[f.service] = max(own[f.service], f.error_rate)
             elif f.type == "latency":

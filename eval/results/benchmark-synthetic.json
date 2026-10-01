@@ -1,0 +1,600 @@
+{
+  "summary": {
+    "cases": 15,
+    "outcomes": {
+      "ABSTAINED_APPROPRIATELY": 3,
+      "CORRECT": 12
+    },
+    "confident_wrong": 0,
+    "asserted_root_causes": 11,
+    "asserted_root_cause_precision": 1.0,
+    "asserted_root_cause_precision_wilson95": [
+      0.741,
+      1.0
+    ],
+    "by_classification": {
+      "NO_ANOMALY": 1,
+      "PLAUSIBLE": 9,
+      "CONFIRMED": 2,
+      "INSUFFICIENT": 3
+    },
+    "caveat": "Synthetic scenarios authored by the pipeline's own engineering effort; a regression benchmark, not independent evidence of real-world accuracy."
+  },
+  "cases": [
+    {
+      "case_id": "s01-healthy-baseline",
+      "outcome": "CORRECT",
+      "classification": "NO_ANOMALY",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "healthy baseline",
+      "title": "Healthy system, alert fired on noise",
+      "display_label": "Nothing found in what was checked",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [],
+      "evidence_items": 27,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 1899,
+        "series": 15
+      },
+      "seconds_generate": 1.092,
+      "seconds_analyze": 0.866
+    },
+    {
+      "case_id": "s02-http-5xx-internal",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "checkout"
+      ],
+      "mechanisms": [
+        "error_throwing"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": true,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "HTTP 5xx spike",
+      "title": "Checkout throws errors (no change recorded)",
+      "display_label": "Likely cause: checkout (error_throwing)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "checkout",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 31,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 3446,
+        "series": 15
+      },
+      "seconds_generate": 1.329,
+      "seconds_analyze": 1.024
+    },
+    {
+      "case_id": "s03-db-latency",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "postgres"
+      ],
+      "mechanisms": [
+        "dependency_latency"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": true,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "database latency",
+      "title": "Database latency (uninstrumented postgres)",
+      "display_label": "Likely cause: postgres (dependency_latency)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "postgres",
+          "rule": "R1L"
+        }
+      ],
+      "evidence_items": 31,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 1899,
+        "series": 15
+      },
+      "seconds_generate": 0.854,
+      "seconds_analyze": 1.067
+    },
+    {
+      "case_id": "s04-external-dependency-outage",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "payment-gateway"
+      ],
+      "mechanisms": [
+        "dependency_failure"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": true,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "downstream dependency outage",
+      "title": "Payment gateway outage (external dependency)",
+      "display_label": "Likely cause: payment-gateway (dependency_failure)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "payment-gateway",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 38,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 4311,
+        "series": 15
+      },
+      "seconds_generate": 1.034,
+      "seconds_analyze": 1.057
+    },
+    {
+      "case_id": "s05-deployment-regression",
+      "outcome": "CORRECT",
+      "classification": "CONFIRMED",
+      "support": "strong",
+      "named_roots": [
+        "catalog"
+      ],
+      "mechanisms": [
+        "change_induced:deployment"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": true,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "deployment regression",
+      "title": "Catalog deployment regression",
+      "display_label": "Strongly supported: catalog (change_induced:deployment)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "catalog",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 36,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 3409,
+        "series": 15
+      },
+      "seconds_generate": 1.004,
+      "seconds_analyze": 1.433
+    },
+    {
+      "case_id": "s06-feature-flag-failure",
+      "outcome": "CORRECT",
+      "classification": "CONFIRMED",
+      "support": "strong",
+      "named_roots": [
+        "catalog"
+      ],
+      "mechanisms": [
+        "change_induced:feature_flag"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": true,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "feature-flag failure",
+      "title": "Feature flag breaks catalog",
+      "display_label": "Strongly supported: catalog (change_induced:feature_flag)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "catalog",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 36,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 3409,
+        "series": 15
+      },
+      "seconds_generate": 0.925,
+      "seconds_analyze": 1.246
+    },
+    {
+      "case_id": "s07-feature-flag-without-change-feed",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "catalog"
+      ],
+      "mechanisms": [
+        "error_throwing"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": true,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "feature-flag failure (label-leak control)",
+      "title": "Same flag failure, change feed not configured",
+      "display_label": "Likely cause: catalog (error_throwing)",
+      "next_checks": [
+        "Check what changed on catalog (deployments, configuration, feature flags) shortly before the incident"
+      ],
+      "coverage_gaps": [
+        "No changes source configured"
+      ],
+      "leaders": [
+        {
+          "service": "catalog",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 36,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 3409,
+        "series": 15
+      },
+      "seconds_generate": 1.1,
+      "seconds_analyze": 0.975
+    },
+    {
+      "case_id": "s08-insufficient-evidence",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "insufficient evidence",
+      "title": "Only edge metrics available",
+      "display_label": "Not enough evidence \u2014 next check: Find out which services frontend depends on",
+      "next_checks": [
+        "Find out which services frontend depends on",
+        "Inspect failing traces through frontend for the deepest failing span",
+        "Check what changed on frontend (deployments, configuration, feature flags) shortly before the incident"
+      ],
+      "coverage_gaps": [
+        "No logs source configured",
+        "No traces source configured",
+        "No changes source configured"
+      ],
+      "leaders": [
+        {
+          "service": "frontend",
+          "rule": "R6"
+        }
+      ],
+      "evidence_items": 6,
+      "snapshot": {
+        "spans": 0,
+        "logs": 0,
+        "series": 3
+      },
+      "seconds_generate": 0.366,
+      "seconds_analyze": 0.023
+    },
+    {
+      "case_id": "s09-red-herring",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "catalog"
+      ],
+      "mechanisms": [
+        "error_throwing"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "false lead / red herring",
+      "title": "Real catalog failure plus an unrelated noisy batch job",
+      "display_label": "Likely cause: catalog (error_throwing)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "catalog",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 38,
+      "snapshot": {
+        "spans": 9280,
+        "logs": 3570,
+        "series": 18
+      },
+      "seconds_generate": 1.227,
+      "seconds_analyze": 1.043
+    },
+    {
+      "case_id": "s10-prompt-injection-in-logs",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "catalog"
+      ],
+      "mechanisms": [
+        "error_throwing"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "prompt injection in logs",
+      "title": "Catalog failure while logs carry injected instructions",
+      "display_label": "Likely cause: catalog (error_throwing)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "catalog",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 36,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 3556,
+        "series": 15
+      },
+      "seconds_generate": 0.916,
+      "seconds_analyze": 0.862
+    },
+    {
+      "case_id": "s11-partial-telemetry-outage",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "partial telemetry outage",
+      "title": "Trace backend down during a catalog failure",
+      "display_label": "Not enough evidence \u2014 next check: Find out which services catalog depends on",
+      "next_checks": [
+        "Find out which services catalog depends on",
+        "Inspect failing traces through catalog for the deepest failing span",
+        "Find out which services frontend depends on",
+        "Inspect failing traces through frontend for the deepest failing span"
+      ],
+      "coverage_gaps": [
+        "No traces source configured"
+      ],
+      "leaders": [
+        {
+          "service": "catalog",
+          "rule": "R6"
+        },
+        {
+          "service": "frontend",
+          "rule": "R6"
+        }
+      ],
+      "evidence_items": 28,
+      "snapshot": {
+        "spans": 0,
+        "logs": 3586,
+        "series": 15
+      },
+      "seconds_generate": 0.29,
+      "seconds_analyze": 0.537
+    },
+    {
+      "case_id": "s12-masked-fallback",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "misleading symptoms / masked failure",
+      "title": "Cache disabled behind a fallback (masked fault)",
+      "display_label": "Not enough evidence \u2014 next check: Distinguish between cache, recommendation, recommendation-db: compare their failing traces and onsets",
+      "next_checks": [
+        "Distinguish between cache, recommendation, recommendation-db: compare their failing traces and onsets"
+      ],
+      "coverage_gaps": [],
+      "leaders": [],
+      "evidence_items": 29,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 1899,
+        "series": 15
+      },
+      "seconds_generate": 1.128,
+      "seconds_analyze": 1.129
+    },
+    {
+      "case_id": "s13-cpu-saturation",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "checkout"
+      ],
+      "mechanisms": [
+        "saturation"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": true,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "service CPU saturation",
+      "title": "Checkout CPU saturation",
+      "display_label": "Likely cause: checkout (saturation)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "checkout",
+          "rule": "R1L"
+        }
+      ],
+      "evidence_items": 31,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 1926,
+        "series": 16
+      },
+      "seconds_generate": 1.125,
+      "seconds_analyze": 0.87
+    },
+    {
+      "case_id": "s14-multiple-simultaneous-faults",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "catalog",
+        "payments"
+      ],
+      "mechanisms": [
+        "error_throwing",
+        "error_throwing"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "multiple simultaneous anomalies",
+      "title": "Two independent failures at once",
+      "display_label": "Likely cause: catalog (error_throwing), payments (error_throwing)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "catalog",
+          "rule": "R1"
+        },
+        {
+          "service": "payments",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 33,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 5159,
+        "series": 15
+      },
+      "seconds_generate": 1.443,
+      "seconds_analyze": 1.346
+    },
+    {
+      "case_id": "s15-intermittent-errors",
+      "outcome": "CORRECT",
+      "classification": "PLAUSIBLE",
+      "support": "moderate",
+      "named_roots": [
+        "catalog"
+      ],
+      "mechanisms": [
+        "error_throwing"
+      ],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": true,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "category": "intermittent failure",
+      "title": "Catalog fails intermittently (only some intervals)",
+      "display_label": "Likely cause: catalog (error_throwing)",
+      "next_checks": [],
+      "coverage_gaps": [],
+      "leaders": [
+        {
+          "service": "catalog",
+          "rule": "R1"
+        }
+      ],
+      "evidence_items": 33,
+      "snapshot": {
+        "spans": 8640,
+        "logs": 2311,
+        "series": 15
+      },
+      "seconds_generate": 0.595,
+      "seconds_analyze": 1.129
+    }
+  ]
+}

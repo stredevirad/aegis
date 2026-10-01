@@ -1,0 +1,254 @@
+{
+  "summary": {
+    "cases": 8,
+    "confident_wrong": 0,
+    "outcomes": {
+      "ABSTAINED_APPROPRIATELY": 6,
+      "PARTIALLY_CORRECT": 2
+    },
+    "expected_sha256": "95c737137ebfac30c036afd78561aa448e834476f9366631406d290895738400",
+    "note": "Real captures with no span status, no parent links, no change feed and no baseline window; see eval/heldout/manifest.json known_limitations."
+  },
+  "cases": [
+    {
+      "case_id": "heldout_inc_demo_1787555948",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "scenario_id": "scenario_live_frontend_001",
+      "display_label": "Not enough evidence \u2014 next check: restore missing telemetry",
+      "next_checks": [
+        "Restore the missing telemetry sources and re-run"
+      ],
+      "coverage_gaps": [
+        "No changes source configured",
+        "Span status is unknown for every trace: error origins and propagation cannot be evaluated",
+        "Traces carry no parent links: service dependencies cannot be derived from traces"
+      ],
+      "candidates": []
+    },
+    {
+      "case_id": "heldout_inc_fault_1787558017",
+      "outcome": "PARTIALLY_CORRECT",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": false,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [
+        "not mentioned in candidates or next checks: ['product-catalog']"
+      ],
+      "scenario_id": "scenario_product_catalog_failure",
+      "display_label": "Not enough evidence \u2014 next check: restore missing telemetry",
+      "next_checks": [
+        "Restore the missing telemetry sources and re-run"
+      ],
+      "coverage_gaps": [
+        "No changes source configured",
+        "Span status is unknown for every trace: error origins and propagation cannot be evaluated",
+        "Traces carry no parent links: service dependencies cannot be derived from traces"
+      ],
+      "candidates": []
+    },
+    {
+      "case_id": "heldout_inc_fault_1787558379",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "scenario_id": "scenario_product_catalog_failure",
+      "display_label": "Not enough evidence \u2014 next check: Check the health and error status of frontend-proxy, frontend-web, product-catalog, cart, load-generator, recommendation",
+      "next_checks": [
+        "Check the health and error status of frontend-proxy, frontend-web, product-catalog, cart, load-generator, recommendation",
+        "Inspect failing traces through frontend for the deepest failing span",
+        "Check what changed on frontend (deployments, configuration, feature flags) shortly before the incident",
+        "Compare frontend with the same time on the previous day"
+      ],
+      "coverage_gaps": [
+        "No changes source configured",
+        "Span status is unknown for every trace: error origins and propagation cannot be evaluated",
+        "Traces carry no parent links: service dependencies cannot be derived from traces"
+      ],
+      "candidates": [
+        "frontend"
+      ]
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578289",
+      "outcome": "PARTIALLY_CORRECT",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": false,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [
+        "not mentioned in candidates or next checks: ['product-catalog']"
+      ],
+      "scenario_id": "scenario_product_catalog_failure",
+      "display_label": "Not enough evidence \u2014 next check: restore missing telemetry",
+      "next_checks": [
+        "Restore the missing telemetry sources and re-run"
+      ],
+      "coverage_gaps": [
+        "No changes source configured",
+        "Span status is unknown for every trace: error origins and propagation cannot be evaluated",
+        "Traces carry no parent links: service dependencies cannot be derived from traces"
+      ],
+      "candidates": []
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578663",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "scenario_id": "scenario_product_catalog_failure",
+      "display_label": "Not enough evidence \u2014 next check: Check the health and error status of frontend-proxy, product-catalog, frontend-web, cart, load-generator, recommendation",
+      "next_checks": [
+        "Check the health and error status of frontend-proxy, product-catalog, frontend-web, cart, load-generator, recommendation",
+        "Inspect failing traces through frontend for the deepest failing span",
+        "Check what changed on frontend (deployments, configuration, feature flags) shortly before the incident",
+        "Compare frontend with the same time on the previous day"
+      ],
+      "coverage_gaps": [
+        "logs collection was partial",
+        "No changes source configured",
+        "Span status is unknown for every trace: error origins and propagation cannot be evaluated",
+        "Traces carry no parent links: service dependencies cannot be derived from traces"
+      ],
+      "candidates": [
+        "frontend"
+      ]
+    },
+    {
+      "case_id": "heldout_inc_fault_1787578865",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "scenario_id": "scenario_product_catalog_failure",
+      "display_label": "Not enough evidence \u2014 next check: Check the health and error status of frontend-proxy, product-catalog, load-generator, frontend-web, cart, recommendation",
+      "next_checks": [
+        "Check the health and error status of frontend-proxy, product-catalog, load-generator, frontend-web, cart, recommendation",
+        "Inspect failing traces through frontend for the deepest failing span",
+        "Check what changed on frontend (deployments, configuration, feature flags) shortly before the incident",
+        "Compare frontend with the same time on the previous day"
+      ],
+      "coverage_gaps": [
+        "No changes source configured",
+        "Span status is unknown for every trace: error origins and propagation cannot be evaluated",
+        "Traces carry no parent links: service dependencies cannot be derived from traces"
+      ],
+      "candidates": [
+        "frontend"
+      ]
+    },
+    {
+      "case_id": "heldout_inc_fault_1787579230",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "scenario_id": "scenario_product_catalog_failure_neutral",
+      "display_label": "Not enough evidence \u2014 next check: Check the health and error status of frontend-proxy, frontend-web, product-catalog, load-generator, cart, ad",
+      "next_checks": [
+        "Check the health and error status of frontend-proxy, frontend-web, product-catalog, load-generator, cart, ad",
+        "Inspect failing traces through frontend for the deepest failing span",
+        "Check what changed on frontend (deployments, configuration, feature flags) shortly before the incident",
+        "Compare frontend with the same time on the previous day"
+      ],
+      "coverage_gaps": [
+        "logs collection was partial",
+        "No changes source configured",
+        "Span status is unknown for every trace: error origins and propagation cannot be evaluated",
+        "Traces carry no parent links: service dependencies cannot be derived from traces"
+      ],
+      "candidates": [
+        "frontend"
+      ]
+    },
+    {
+      "case_id": "heldout_inc_fault_1787579446",
+      "outcome": "ABSTAINED_APPROPRIATELY",
+      "classification": "INSUFFICIENT",
+      "support": "none",
+      "named_roots": [],
+      "mechanisms": [],
+      "classification_ok": true,
+      "roots_ok": true,
+      "mechanism_ok": null,
+      "mentions_ok": true,
+      "citations_valid": true,
+      "confident_wrong": false,
+      "notes": [],
+      "scenario_id": "scenario_recommendation_cache_failure",
+      "display_label": "Not enough evidence \u2014 next check: Check the health and error status of frontend-proxy, product-catalog, frontend-web, load-generator, recommendation, cart",
+      "next_checks": [
+        "Check the health and error status of frontend-proxy, product-catalog, frontend-web, load-generator, recommendation, cart",
+        "Inspect failing traces through frontend for the deepest failing span",
+        "Check what changed on frontend (deployments, configuration, feature flags) shortly before the incident",
+        "Compare frontend with the same time on the previous day"
+      ],
+      "coverage_gaps": [
+        "logs collection was partial",
+        "No changes source configured",
+        "Span status is unknown for every trace: error origins and propagation cannot be evaluated",
+        "Traces carry no parent links: service dependencies cannot be derived from traces"
+      ],
+      "candidates": [
+        "frontend"
+      ]
+    }
+  ]
+}

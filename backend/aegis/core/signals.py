@@ -227,6 +227,13 @@ def assess(
     baseline, state = _choose_baseline(sig.service, sig.points, request, changes)
     values = [p.value for p in incident]
     inc_value = quantile(values, 0.75)
+    if sig.signal is SignalKind.ERROR_RATIO:
+        weighted = [(p.value, p.count) for p in incident if p.count is not None and p.count > 0]
+        if weighted:
+            # Total failures / total requests: per-bucket quantiles are blind to intermittent
+            # faults (errors only in some buckets) and over-weight near-empty buckets.
+            total = sum(c for _, c in weighted)
+            inc_value = sum(v * c for v, c in weighted) / total
     base_value: float | None = median([p.value for p in baseline]) if baseline else None
     sources = tuple(sorted((s["provider"], s.get("query", "")) for s in sig.sources))
 

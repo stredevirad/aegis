@@ -213,6 +213,17 @@ SCENARIOS: list[dict[str, Any]] = [
                      "forbidden_root_services": ["frontend", "checkout"],
                      "must_mention": ["catalog", "payments"]},
     },
+    {
+        "id": "s15-intermittent-errors",
+        "title": "Catalog fails intermittently (only some intervals)",
+        "category": "intermittent failure",
+        "description": "catalog fails 40% of requests, but only in about a third of the 30-second intervals (e.g. only requests for some products); the median interval shows no errors.",
+        "services": shop(),
+        "faults": [{"service": "catalog", "type": "errors", "error_rate": 0.4, "duty_cycle": 0.3,
+                    "log_template": "product {n} not found in catalog index"}],
+        "expected": {"classifications": ["PLAUSIBLE", "CONFIRMED"], "root_services": ["catalog"],
+                     "mechanisms": ["error_throwing"], "forbidden_root_services": ["frontend"]},
+    },
 ]
 
 

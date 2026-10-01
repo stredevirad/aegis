@@ -7,6 +7,7 @@ ADR-009 (amendment 1). ``not_evaluable`` and ``not_applicable`` never count as a
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -72,7 +73,7 @@ class Context:
     facts: dict[str, ServiceFacts]
     origin: OriginStats
     latency: LatencyStats
-    co_occurrence: dict[str, set[str]]
+    co_occurrence: dict[str, Counter[str]]
     change_feed_ok: bool
     own_telemetry: set[str]
     services_with_links: set[str]
@@ -440,7 +441,7 @@ def _checks(ctx: Context, service: str, leaders: set[str]) -> list[Check]:
     # Isolation and downstream evaluation.
     callees = sorted(ctx.graph.callees.get(service, set()))
     if not ctx.topology_known(service):
-        seen_with = sorted(ctx.co_occurrence.get(service, set()))
+        seen_with = _ranked_co_occurring(ctx, service)
         out.append(
             _check(
                 CheckName.ISOLATION,
@@ -598,6 +599,12 @@ def _checks(ctx: Context, service: str, leaders: set[str]) -> list[Check]:
     return out
 
 
+def _ranked_co_occurring(ctx: Context, service: str) -> list[str]:
+    """Services seen in the same traces, most frequent first (ties alphabetical)."""
+    counts = ctx.co_occurrence.get(service, Counter())
+    return [s for s, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+
 def _minutes(delta: timedelta) -> str:
     return f"{delta.total_seconds() / 60:.1f} min before its onset"
 
@@ -750,7 +757,7 @@ def _next_checks(ctx: Context, service: str | None, checks: list[Check]) -> list
         if ctx.topology_known(service):
             deps = sorted(c for c in ctx.graph.callees.get(service, set()) if not ctx.evaluable(c))
         else:
-            deps = sorted(ctx.co_occurrence.get(service, set()))
+            deps = _ranked_co_occurring(ctx, service)
         if deps:
             out.append(
                 NextCheck(
