@@ -19,7 +19,7 @@ Workflow:
     13. Verify recovery
 """
 import argparse
-import json
+import os
 import subprocess
 import sys
 import time
@@ -180,9 +180,6 @@ def collect_telemetry_signature(config: dict, target_service: str, affected_serv
         log(f"  Warning: Traces signature check failed: {e}")
 
     return signature
-
-
-import os
 
 
 def run_investigation(

@@ -7,12 +7,12 @@ provenance preservation across:
 - Condition C: Subprocess Stdio MCP Client/Server execution
 """
 import asyncio
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import statistics
 import sys
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

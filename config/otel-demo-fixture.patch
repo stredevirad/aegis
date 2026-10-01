@@ -1,0 +1,25 @@
+diff --git a/src/flagd/demo.flagd.json b/src/flagd/demo.flagd.json
+index 80a4fbc..6f4abf4 100644
+--- a/src/flagd/demo.flagd.json
++++ b/src/flagd/demo.flagd.json
+@@ -140,20 +140,6 @@
+       "defaultVariant": "off",
+       "description": "Fail product catalog service on a specific product",
+       "state": "ENABLED",
+-      "targeting": {
+-        "if": [
+-          {
+-            "==": [
+-              {
+-                "var": "product_id"
+-              },
+-              "OLJCESPC7Z"
+-            ]
+-          },
+-          "off",
+-          "off"
+-        ]
+-      },
+       "variants": {
+         "off": false,
+         "on": true

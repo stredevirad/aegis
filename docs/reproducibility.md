@@ -88,6 +88,19 @@ python -m src.investigation.demo --mock-llm
 
 Aegis connects to the standard OpenTelemetry Astronomy Shop demo.
 
+> **Fixture pinning (added by the 2026-10-01 production-readiness audit).** The research runs
+> used the OpenTelemetry Demo at upstream commit `2e05c45b85b985a691cc75082c234e8d6ac0b2e9`
+> **with a local edit** that deletes the `targeting` rule of the `productCatalogFailure` flag in
+> `src/flagd/demo.flagd.json`. Upstream's rule returns `"off"` in both branches and overrides
+> `defaultVariant`, so without the edit `scripts/inject-fault.py --flag productCatalogFailure
+> --value on` has no effect. To reproduce the fixture exactly:
+>
+> ```powershell
+> git clone https://github.com/open-telemetry/opentelemetry-demo.git external/opentelemetry-demo
+> git -C external/opentelemetry-demo checkout 2e05c45b85b985a691cc75082c234e8d6ac0b2e9
+> git -C external/opentelemetry-demo apply ../../config/otel-demo-fixture.patch
+> ```
+
 ### 4.1 Starting the OTel Demo Stack
 ```powershell
 # Start the Docker Compose stack (Prometheus, OpenSearch, Jaeger, Flagd, Microservices)

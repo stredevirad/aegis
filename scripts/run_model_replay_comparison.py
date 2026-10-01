@@ -3,11 +3,11 @@
 Evaluates multiple local LLM models on identical, deterministic Evidence snapshots
 to disentangle Aegis architectural capabilities from individual LLM reasoning limits.
 """
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import sys
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

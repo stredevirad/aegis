@@ -89,7 +89,7 @@ def inject_fault(flag_name: str, value: str) -> None:
     print(f"  New Default    : {value}")
     print(f"  Description    : {flag.get('description', 'N/A')}")
     print(f"  Config File    : {FLAGD_CONFIG}")
-    print(f"  NOTE: flagd watches this file and will apply changes automatically.")
+    print("  NOTE: flagd watches this file and will apply changes automatically.")
 
 
 def recover_fault(flag_name: str) -> None:

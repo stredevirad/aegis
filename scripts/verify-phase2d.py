@@ -1,10 +1,13 @@
-from datetime import datetime, timezone, timedelta
-import yaml
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import yaml
+
 from src.adapters.jaeger import JaegerProvider
-from src.adapters.mock_providers import MockMetricsProvider, MockLogsProvider, MockTopologyProvider
+from src.adapters.mock_providers import MockLogsProvider, MockMetricsProvider, MockTopologyProvider
+from src.domain import HealthStatus, ToolCall
 from src.investigation.tools import ToolDispatcher
-from src.domain import ToolCall, HealthStatus
+
 
 def main():
     print("=" * 60)

@@ -1,10 +1,13 @@
-from datetime import datetime, timezone, timedelta
-import yaml
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from src.adapters.opensearch import OpenSearchProvider
+
+import yaml
+
 from src.adapters.mock_providers import MockMetricsProvider, MockTopologyProvider
-from src.investigation.tools import ToolDispatcher
+from src.adapters.opensearch import OpenSearchProvider
 from src.domain import ToolCall
+from src.investigation.tools import ToolDispatcher
+
 
 def main():
     print("=" * 60)

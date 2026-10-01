@@ -1,10 +1,13 @@
 from datetime import datetime, timezone
-import yaml
 from pathlib import Path
-from src.adapters.prometheus import PrometheusProvider
+
+import yaml
+
 from src.adapters.mock_providers import MockLogsProvider, MockTopologyProvider
-from src.investigation.tools import ToolDispatcher
+from src.adapters.prometheus import PrometheusProvider
 from src.domain import ToolCall
+from src.investigation.tools import ToolDispatcher
+
 
 def main():
     print("=" * 60)
