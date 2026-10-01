@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -73,6 +74,9 @@ class Settings(BaseSettings):
     job_max_attempts: int = Field(default=3, ge=1, le=10)
     org_running_cap: int = Field(default=4, ge=1)
     org_queue_limit: int = Field(default=50, ge=1)
+    # Operator-configured directory of synthetic scenarios usable as investigation sources
+    # (demo / pipeline exercise). Unset in production unless deliberately enabled.
+    scenario_dir: Path | None = None
     sse_poll_seconds: float = Field(default=1.0, gt=0.05, le=30)
     sse_max_streams_per_user: int = Field(default=10, ge=1)
 
