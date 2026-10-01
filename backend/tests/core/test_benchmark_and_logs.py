@@ -95,3 +95,12 @@ def test_template_masks_variable_parts():
         "user 999 failed login from 192.168.1.20 at 2026-02-03T11:22:33Z id=123e4567-e89b-12d3-a456-426614174000"
     )
     assert a == b
+
+
+def test_every_evidence_item_carries_provenance():
+    """Prompt §37: claim -> evidence -> telemetry source. No evidence item without a source."""
+    missing = []
+    for spec in load_scenarios(SCENARIOS):
+        snap, req = generate(spec)
+        missing += [(spec.id, e.kind.value) for e in analyze(snap, req).evidence if not e.sources]
+    assert not missing, missing

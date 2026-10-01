@@ -7,6 +7,7 @@ Evidence summaries are generated from templates; telemetry-derived strings insid
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -149,6 +150,25 @@ _UNIT = {
 }
 
 
+Sources = list[dict[str, str]]
+
+
+def sources_by_service(items: Iterable[Any], cap: int = 3) -> dict[str, Sources]:
+    """Up to ``cap`` distinct (provider, query) pairs per service, for evidence provenance."""
+    seen: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for item in items:
+        seen[item.service].add((item.provenance.provider, item.provenance.query or ""))
+    return {
+        svc: [{"provider": p, "query": q} for p, q in sorted(pairs)[:cap]]
+        for svc, pairs in seen.items()
+    }
+
+
+def _merged(*lists: Sources | None, cap: int = 3) -> Sources:
+    pairs = sorted({(d["provider"], d.get("query", "")) for lst in lists if lst for d in lst})
+    return [{"provider": p, "query": q} for p, q in pairs[:cap]]
+
+
 def facts_for(services: set[str], facts: dict[str, ServiceFacts], name: str) -> ServiceFacts:
     if name not in facts:
         facts[name] = ServiceFacts(name)
@@ -227,9 +247,11 @@ def add_edge_latency_evidence(
     request: AnalysisRequest,
     base: EdgeCounts,
     inc: EdgeCounts,
+    trace_sources: dict[str, Sources] | None = None,
 ) -> None:
     """Latency of calls into a dependency, measured at the callers (works when the
     dependency itself is not instrumented, e.g. a database)."""
+    trace_sources = trace_sources or {}
     tol = request.tolerances
     for edge in sorted(set(inc.latencies)):
         caller, callee = edge
@@ -268,6 +290,7 @@ def add_edge_latency_evidence(
                     f"(baseline {b95:.1f}ms, threshold {threshold:.1f}ms)"
                 ),
                 attributes=attrs,
+                sources=_merged(trace_sources.get(caller)),
             )
             eb.relate(f"svc:{caller}", f"svc:{callee}", RelationKind.CALLS)
             f.anomalies.append(Anomaly(eid, Modality.TRACES, "latency", onset, True, "up"))
@@ -281,8 +304,11 @@ def add_origin_evidence(
     base_origin: OriginStats,
     groups: list[TraceGroup],
     request: AnalysisRequest,
+    trace_sources: dict[str, Sources] | None = None,
 ) -> None:
     tol = request.tolerances
+    trace_sources = trace_sources or {}
+    all_trace_sources = _merged(*trace_sources.values())
     by_trace = {g.trace_id: g for g in groups}
     for service in sorted(origin.origin_counts):
         count = origin.origin_counts[service]
@@ -325,6 +351,8 @@ def add_origin_evidence(
                 "exemplar_trace_ids": exemplars,
                 "anomalous": anomalous,
             },
+            # an inferred (uninstrumented) origin is seen through its callers' spans
+            sources=trace_sources.get(service) or all_trace_sources,
         )
         f.origin_evidence = eid
         f.origin_share = share
@@ -361,7 +389,9 @@ def add_log_evidence(
     services: set[str],
     findings: list[SignatureFinding],
     rates: list[ErrorLogRate],
+    log_sources: dict[str, Sources] | None = None,
 ) -> None:
+    log_sources = log_sources or {}
     for fd in findings:
         st = fd.stats
         if not st.error and fd.status == "present":
@@ -420,6 +450,7 @@ def add_log_evidence(
                     f"(baseline {r.baseline_per_min:.1f}/min)"
                 ),
                 attributes=attrs,
+                sources=_merged(log_sources.get(r.service)),
             )
             f.anomalies.append(Anomaly(eid, Modality.LOGS, "error", r.onset, True, "up"))
         else:
@@ -434,6 +465,7 @@ def add_log_evidence(
                     f"(baseline {r.baseline_per_min:.1f}/min): not elevated"
                 ),
                 attributes=attrs,
+                sources=_merged(log_sources.get(r.service)),
             )
             f.normals.append((eid, "error", Modality.LOGS))
 
@@ -473,7 +505,9 @@ def add_edge_change_evidence(
     facts: dict[str, ServiceFacts],
     services: set[str],
     edge_changes: list[EdgeChange],
+    trace_sources: dict[str, Sources] | None = None,
 ) -> None:
+    trace_sources = trace_sources or {}
     for e in edge_changes:
         eid = eb.add(
             EvidenceKind.EDGE_CHANGE,
@@ -492,6 +526,7 @@ def add_edge_change_evidence(
                 "baseline_calls": e.baseline_calls,
                 "incident_calls": e.incident_calls,
             },
+            sources=_merged(trace_sources.get(e.source)),
         )
         eb.relate(f"svc:{e.source}", f"svc:{e.target}", RelationKind.CALLS)
         facts_for(services, facts, e.target).edge_change_evidence.append(eid)
@@ -506,8 +541,14 @@ def add_coverage_evidence(
     graph: Graph,
 ) -> list[str]:
     gaps: list[str] = []
+    trace_providers = _merged(*sources_by_service(snapshot.spans).values())
     for modality in (Modality.METRICS, Modality.LOGS, Modality.TRACES, Modality.CHANGES):
         status = snapshot.outcome(modality)
+        outcome_sources = [
+            {"provider": o.provider, "query": f"collection status: {o.status.value}"}
+            for o in snapshot.collection
+            if o.modality is modality
+        ][:3] or [{"provider": "aegis", "query": f"collection plan: no {modality.value} source"}]
         details = [o.detail for o in snapshot.collection if o.modality is modality and o.detail]
         truncated = any(o.truncated for o in snapshot.collection if o.modality is modality)
         if status is not CollectionStatus.OK or truncated:
@@ -530,6 +571,7 @@ def add_coverage_evidence(
                     "status": status.value,
                     "truncated": truncated,
                 },
+                sources=outcome_sources,
             )
     if origin.total_traces and origin.traces_with_unknown_status == origin.total_traces:
         text = "Span status is unknown for every trace: error origins and propagation cannot be evaluated"
@@ -542,6 +584,7 @@ def add_coverage_evidence(
             observed_at=None,
             summary=text,
             attributes={"traces": origin.total_traces},
+            sources=trace_providers,
         )
     if snapshot.spans and not has_parent_links and not graph.derived_from_traces:
         text = "Traces carry no parent links: service dependencies cannot be derived from traces"
@@ -554,6 +597,7 @@ def add_coverage_evidence(
             observed_at=None,
             summary=text,
             attributes={},
+            sources=trace_providers,
         )
     return gaps
 

@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     # Operator-configured directory of synthetic scenarios usable as investigation sources
     # (demo / pipeline exercise). Unset in production unless deliberately enabled.
     scenario_dir: Path | None = None
+    # Request bodies above this size are rejected before parsing (bounded ingestion, S-M2).
+    max_body_bytes: int = Field(default=1_048_576, ge=1024, le=50_000_000)
+    # Per-credential ingestion rate limit (per API replica; token bucket).
+    ingest_per_minute: int = Field(default=600, ge=1)
+    ingest_burst: int = Field(default=120, ge=1)
     sse_poll_seconds: float = Field(default=1.0, gt=0.05, le=30)
     sse_max_streams_per_user: int = Field(default=10, ge=1)
 

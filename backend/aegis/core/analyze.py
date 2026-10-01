@@ -67,16 +67,21 @@ def analyze(snapshot: TelemetrySnapshot, request: AnalysisRequest) -> Analysis:
     base_edges = edges_from_spans(baseline_groups)
     graph = Graph.build(snapshot.edges, [inc_edges, base_edges], services)
     links = has_parent_links(snapshot.spans)
-    F.add_origin_evidence(eb, facts, services, origin, base_origin, incident_groups, request)
-    F.add_edge_latency_evidence(eb, facts, services, request, base_edges, inc_edges)
-    F.add_edge_change_evidence(eb, facts, services, edge_diff(base_edges, inc_edges, tol))
+    trace_sources = F.sources_by_service(snapshot.spans)
+    F.add_origin_evidence(
+        eb, facts, services, origin, base_origin, incident_groups, request, trace_sources
+    )
+    F.add_edge_latency_evidence(eb, facts, services, request, base_edges, inc_edges, trace_sources)
+    F.add_edge_change_evidence(
+        eb, facts, services, edge_diff(base_edges, inc_edges, tol), trace_sources
+    )
     for (_caller, callee), n in sorted(inc_edges.status_known.items()):
         if n > 0 and callee in graph.inferred_services and callee in facts:
             facts[callee].evaluable = True  # health of an uninstrumented peer seen by callers
 
     # Logs and changes.
     findings, rates = analyze_logs(snapshot.logs, request)
-    F.add_log_evidence(eb, facts, services, findings, rates)
+    F.add_log_evidence(eb, facts, services, findings, rates, F.sources_by_service(snapshot.logs))
     F.add_change_evidence(eb, facts, services, changes)
 
     gaps = F.add_coverage_evidence(eb, snapshot, origin, links, graph)
