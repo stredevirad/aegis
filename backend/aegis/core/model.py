@@ -18,6 +18,8 @@ from typing import Annotated
 
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from aegis.core.sanitize import clean_name, clean_text
+
 SNAPSHOT_SCHEMA_VERSION = "1"
 
 MAX_TEXT = 2048
@@ -38,11 +40,13 @@ def _check_attributes(value: dict[str, str]) -> dict[str, str]:
     for k, v in value.items():
         if len(k) > MAX_NAME or len(v) > MAX_ATTR_VALUE:
             raise ValueError("attribute key or value too long")
-    return value
+    # keys and values are single-line identifiers/values: neutralise structure-forging chars
+    return {clean_name(k): clean_name(v) for k, v in value.items()}
 
 
-Name = Annotated[str, Field(min_length=1, max_length=MAX_NAME)]
-Text = Annotated[str, Field(max_length=MAX_TEXT)]
+# Untrusted strings are neutralised at the model boundary (see aegis.core.sanitize).
+Name = Annotated[str, Field(min_length=1, max_length=MAX_NAME), AfterValidator(clean_name)]
+Text = Annotated[str, Field(max_length=MAX_TEXT), AfterValidator(clean_text)]
 Attributes = Annotated[dict[str, str], AfterValidator(_check_attributes)]
 
 

@@ -21,6 +21,7 @@ from aegis.core.model import (
     TelemetrySnapshot,
 )
 from aegis.core.result import Evidence, EvidenceKind, Relation, RelationKind, evidence_id
+from aegis.core.sanitize import single_line
 from aegis.core.signals import SignalAssessment
 from aegis.core.stats import quantile
 from aegis.core.topology import EdgeChange, Graph
@@ -452,7 +453,7 @@ def add_change_evidence(
             observed_at=c.ts,
             summary=(
                 f"{c.kind.value} change on {_svc(c.service or 'unknown service')} at "
-                f"{c.ts.isoformat()}: {c.summary[:200]}"
+                f"{c.ts.isoformat()}: {single_line(c.summary)[:200]}"
             ),
             attributes={
                 "kind": c.kind.value,

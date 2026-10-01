@@ -6,11 +6,13 @@ identical, which is what makes replay, the benchmark and audits trustworthy.
 
 from __future__ import annotations
 
+import hashlib
+
 from aegis.core import facts as F
 from aegis.core.decide import Context, decide
 from aegis.core.logs import analyze_logs
 from aegis.core.model import AnalysisRequest, CollectionStatus, Modality, TelemetrySnapshot
-from aegis.core.result import Analysis, Candidate, Evidence, EvidenceKind, Verdict, digest_of
+from aegis.core.result import Analysis, Candidate, Evidence, EvidenceKind, Verdict
 from aegis.core.signals import assess, extract_signals
 from aegis.core.topology import Graph, edge_diff
 from aegis.core.traces import (
@@ -115,7 +117,7 @@ def analyze(snapshot: TelemetrySnapshot, request: AnalysisRequest) -> Analysis:
     ]
     return Analysis(
         request=request,
-        snapshot_digest=digest_of(snapshot.model_dump(mode="json")),
+        snapshot_digest=hashlib.sha256(snapshot.model_dump_json().encode("utf-8")).hexdigest(),
         evidence=evidence,
         relations=relations,
         candidates=candidates,
