@@ -69,11 +69,15 @@ async def me(
 
 @router.get("/sources", response_model=S.SourcesOut)
 async def sources(
-    _: Annotated[Principal, Depends(require(Permission.INVESTIGATION_READ))],
+    principal: Annotated[Principal, Depends(require(Permission.INVESTIGATION_READ))],
     state: Annotated[AppState, Depends(app_state)],
 ) -> S.SourcesOut:
+    from aegis.api.routers.incidents import live_ready
+
+    async with tenant_tx(state.engine, principal.org_id, principal.user_id) as c:
+        live = await live_ready(c, state, principal.org_id)
     return S.SourcesOut(
-        live=state.live_collection_available,
+        live=live,
         scenarios=state.scenarios.ids(),
         note="Scenario sources produce SYNTHETIC telemetry for demonstration and pipeline testing.",
     )

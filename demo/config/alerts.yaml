@@ -1,0 +1,23 @@
+groups:
+  - name: aegis-demo
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[1m]))
+            / sum by (service_name) (rate(http_server_request_duration_seconds_count[1m])) > 0.05
+        for: 30s
+        labels:
+          severity: critical
+          environment: demo
+        annotations:
+          summary: "Error rate above 5% on {{ $labels.service_name }}"
+          description: "{{ $value | humanizePercentage }} of requests to {{ $labels.service_name }} fail."
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (service_name, le) (rate(http_server_request_duration_seconds_bucket[1m]))) > 0.5
+        for: 1m
+        labels:
+          severity: high
+          environment: demo
+        annotations:
+          summary: "p95 latency above 500 ms on {{ $labels.service_name }}"

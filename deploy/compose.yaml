@@ -1,0 +1,135 @@
+# Aegis local stack.
+#
+#   docker compose -f deploy/compose.yaml --profile demo up -d --build     # demo telemetry stack
+#
+# Profiles:
+#   demo   small instrumented services -> OTel Collector -> Prometheus / Jaeger / Loki,
+#          Alertmanager, a flag service with a reversible fault, a load generator
+#
+# Memory limits keep the whole demo well under 2 GB (measured; see docs/production-readiness.md).
+# Ports are bound to 127.0.0.1 only.
+name: aegis
+
+# The demo image is built once (by the "flags" service); the others reuse it.
+x-demo-service: &demo-service
+  image: aegis-demo:dev
+  pull_policy: never
+  environment: &demo-env
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    FLAG_SERVICE_URL: http://flags:8080
+  depends_on: [otel-collector, flags]
+  mem_limit: 128m
+  restart: unless-stopped
+  profiles: ["demo"]
+
+services:
+  frontend:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      SERVICE_NAME: frontend
+      CALLS: checkout=http://checkout:8080,catalog=http://catalog:8080
+    ports: ["127.0.0.1:18080:8080"]
+
+  checkout:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      SERVICE_NAME: checkout
+      CALLS: payments=http://payments:8080
+      DB_CALLS: postgres
+
+  catalog:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      SERVICE_NAME: catalog
+      DB_CALLS: postgres
+      BASE_LATENCY_MS: "5"
+
+  payments:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      SERVICE_NAME: payments
+      BASE_LATENCY_MS: "12"
+
+  flags:
+    build: ../demo/app
+    image: aegis-demo:dev
+    command: ["uvicorn", "flags:app", "--host", "0.0.0.0", "--port", "8080", "--log-level", "warning"]
+    environment:
+      AEGIS_URL: http://api:8000
+      AEGIS_CHANGE_KEY_FILE: /run/aegis/change-ingest-key
+    volumes:
+      - aegis-keys:/run/aegis:ro
+    ports: ["127.0.0.1:18081:8080"]
+    mem_limit: 96m
+    restart: unless-stopped
+    profiles: ["demo"]
+
+  loadgen:
+    image: aegis-demo:dev
+    pull_policy: never
+    command: ["python", "loadgen.py"]
+    environment:
+      TARGET: http://frontend:8080/api/work
+      RATE: "8"
+    depends_on: [frontend]
+    mem_limit: 64m
+    restart: unless-stopped
+    profiles: ["demo"]
+
+  otel-collector:
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.157.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ../demo/config/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    depends_on: [jaeger, loki]
+    mem_limit: 256m
+    restart: unless-stopped
+    profiles: ["demo"]
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:v3.13.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.retention.time=2d
+    volumes:
+      - ../demo/config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ../demo/config/alerts.yaml:/etc/prometheus/alerts.yaml:ro
+    ports: ["127.0.0.1:19090:9090"]
+    mem_limit: 384m
+    restart: unless-stopped
+    profiles: ["demo"]
+
+  alertmanager:
+    image: quay.io/prometheus/alertmanager:v0.29.0
+    command: ["--config.file=/etc/alertmanager/alertmanager.yaml", "--storage.path=/alertmanager"]
+    volumes:
+      - ../demo/config/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
+      - aegis-keys:/run/aegis:ro
+    ports: ["127.0.0.1:19093:9093"]
+    mem_limit: 64m
+    restart: unless-stopped
+    profiles: ["demo"]
+
+  jaeger:
+    image: quay.io/jaegertracing/jaeger:2.19.0
+    ports: ["127.0.0.1:16686:16686"]
+    mem_limit: 256m
+    restart: unless-stopped
+    profiles: ["demo"]
+
+  loki:
+    image: grafana/loki:3.6.0
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ../demo/config/loki.yaml:/etc/loki/loki.yaml:ro
+    ports: ["127.0.0.1:13100:3100"]
+    mem_limit: 256m
+    restart: unless-stopped
+    profiles: ["demo"]
+
+volumes:
+  aegis-keys:

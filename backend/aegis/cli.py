@@ -64,12 +64,20 @@ def run_api(host: str, port: int) -> int:
 
 
 async def _run_worker(settings: Settings) -> None:
+    from aegis.collection.live import LiveCollector
     from aegis.db.engine import make_engine
+    from aegis.integrations import registry as connector_registry
+    from aegis.integrations.egress import EgressClient
     from aegis.investigations.sources import ScenarioRegistry
+    from aegis.security.crypto import Keyring
     from aegis.worker.runner import Worker
 
     engine = make_engine(settings)
-    worker = Worker(engine, settings, ScenarioRegistry(settings.scenario_dir))
+    egress = EgressClient(settings)
+    collector = LiveCollector(
+        engine, connector_registry.load(settings), Keyring.from_settings(settings), egress
+    )
+    worker = Worker(engine, settings, ScenarioRegistry(settings.scenario_dir), collector=collector)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -84,6 +92,7 @@ async def _run_worker(settings: Settings) -> None:
     try:
         await worker.run(stop)
     finally:
+        await egress.aclose()
         await engine.dispose()
         log.info("worker stopped", extra={"processed": dict(worker.processed)})
 

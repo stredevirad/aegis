@@ -22,6 +22,8 @@ from aegis.auth.rbac import Permission
 from aegis.core.sanitize import clean_name, clean_text
 from aegis.db.engine import tenant_tx
 from aegis.db.tables import alerts, incidents, investigations, organizations
+from aegis.integrations.registry import TELEMETRY_KINDS
+from aegis.integrations.store import usable_integrations
 from aegis.investigations import windows as win
 from aegis.investigations.sources import LiveSource, ScenarioSource, SourceUnavailable
 from aegis.jobs import queue
@@ -342,6 +344,12 @@ async def start_investigation(
             ).scalar_one_or_none()
         )
         source = body.source or org_settings.default_source or LiveSource()
+        if isinstance(source, LiveSource) and not await live_ready(c, state, principal.org_id):
+            raise ApiError(
+                400,
+                "source_unavailable",
+                "Live telemetry collection needs at least one enabled telemetry integration",
+            )
         windows = resolve_windows(state, source, body.window, inc["started_at"], now)
         try:
             res = await queue.enqueue_investigation(
@@ -393,13 +401,6 @@ def resolve_windows(
             return state.scenarios.windows(source.scenario)
         except SourceUnavailable as exc:
             raise ApiError(400, "source_unavailable", str(exc)) from None
-    # Live collection arrives with the integration registry (roadmap M4).
-    if not state.live_collection_available:
-        raise ApiError(
-            400,
-            "source_unavailable",
-            "Live telemetry collection is not configured (no integrations registered)",
-        )
     if window is None:
         return win.for_incident(incident_started, now).windows
     if window.end <= window.start or window.end - window.start > MAX_WINDOW:
@@ -409,3 +410,11 @@ def resolve_windows(
     if window.end > now + win.LEAD:
         raise ApiError(400, "invalid_window", "The window must not end in the future")
     return queue.Windows(window.start, window.end, window.start - win.BASELINE_LENGTH, window.start)
+
+
+async def live_ready(conn: Any, state: AppState, org_id: UUID) -> bool:
+    """The organization has at least one enabled, usable telemetry integration."""
+    usable, _ = await usable_integrations(
+        conn, org_id, state.registry, state.keyring, TELEMETRY_KINDS
+    )
+    return bool(usable)

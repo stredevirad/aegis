@@ -270,3 +270,18 @@ async def oidc_callback(
     response.delete_cookie(STATE_COOKIE, path="/auth")
     set_session_cookie(response, state.settings, result.token, result.expires_at)
     return response
+
+
+class AuthConfigOut(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    mode: str
+    dev_login: bool
+
+
+@router.get("/config", response_model=AuthConfigOut)
+async def auth_config(state: Annotated[AppState, Depends(app_state)]) -> AuthConfigOut:
+    """Public: which login the SPA should offer. Reveals nothing beyond the login method."""
+    return AuthConfigOut(
+        mode=state.settings.auth_mode,
+        dev_login=state.settings.dev_like and state.settings.auth_mode == "dev",
+    )

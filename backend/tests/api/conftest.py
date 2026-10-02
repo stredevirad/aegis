@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import secrets
-import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
@@ -17,6 +15,7 @@ from aegis.config import Profile, Settings
 from aegis.investigations.sources import ScenarioRegistry
 from aegis.jobs import queue
 from aegis.worker.runner import Worker
+from tests.conftest import Tenant
 
 SCENARIOS = Path(__file__).resolve().parents[3] / "eval" / "scenarios"
 BASE = "http://testserver"
@@ -46,24 +45,6 @@ def settings() -> Settings:
 @pytest.fixture
 def app(settings, app_engine, registry):
     return create_app(settings, engine=app_engine, scenarios=registry)
-
-
-@dataclass
-class Tenant:
-    org_id: uuid.UUID
-    slug: str
-
-
-@pytest_asyncio.fixture
-async def tenant_factory(su_conn):
-    async def make(name: str = "t") -> Tenant:
-        slug = f"{name}-{secrets.token_hex(4)}"
-        org_id = await su_conn.fetchval(
-            "INSERT INTO aegis.organizations (slug, name) VALUES ($1, $1) RETURNING id", slug
-        )
-        return Tenant(org_id, slug)
-
-    return make
 
 
 @pytest_asyncio.fixture

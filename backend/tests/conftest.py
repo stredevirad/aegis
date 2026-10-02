@@ -12,6 +12,7 @@ import os
 import secrets
 import uuid
 from collections.abc import AsyncIterator, Iterator
+from dataclasses import dataclass
 from urllib.parse import quote
 
 import asyncpg
@@ -111,3 +112,21 @@ async def two_orgs(su_conn: asyncpg.Connection) -> dict[str, uuid.UUID]:
 async def empty_queue(su_conn: asyncpg.Connection) -> None:
     """claim_job is global across organizations: claim tests start from an empty queue."""
     await su_conn.execute("DELETE FROM aegis.investigation_jobs")
+
+
+@dataclass
+class Tenant:
+    org_id: uuid.UUID
+    slug: str
+
+
+@pytest_asyncio.fixture
+async def tenant_factory(su_conn):
+    async def make(name: str = "t") -> Tenant:
+        slug = f"{name}-{secrets.token_hex(4)}"
+        org_id = await su_conn.fetchval(
+            "INSERT INTO aegis.organizations (slug, name) VALUES ($1, $1) RETURNING id", slug
+        )
+        return Tenant(org_id, slug)
+
+    return make

@@ -31,9 +31,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from aegis import audit
 from aegis.audit import Action, Actor
+from aegis.collection.live import LiveCollector, NoTelemetryConfigured
 from aegis.config import Settings
 from aegis.core import analyze
-from aegis.core.model import AnalysisRequest, TelemetrySnapshot, TimeWindow
+from aegis.core.model import (
+    AnalysisRequest,
+    CollectionStatus,
+    Modality,
+    TelemetrySnapshot,
+    TimeWindow,
+)
 from aegis.core.result import digest_of
 from aegis.db.engine import tenant_tx
 from aegis.db.tables import incidents, investigations
@@ -80,10 +87,12 @@ class Worker:
         scenarios: ScenarioRegistry,
         worker_id: str | None = None,
         poll_seconds: float = 1.0,
+        collector: LiveCollector | None = None,
     ) -> None:
         self.engine = engine
         self.settings = settings
         self.scenarios = scenarios
+        self.collector = collector
         self.worker_id = (
             worker_id or settings.worker_id or f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
         )
@@ -296,7 +305,9 @@ class Worker:
                 await events.append(
                     c, org, inv_id, EventKind.COLLECTING, "Collecting telemetry", state="running"
                 )
-            snapshot, request = await self._collect(source, windows, incident_service)
+            snapshot, request, redaction = await self._collect(
+                source, windows, incident_service, job
+            )
             digest = digest_of(snapshot.model_dump(mode="json"))
             async with tenant_tx(self.engine, org) as c:
                 if not await queue.heartbeat(c, job, self.settings.job_lease_seconds):
@@ -323,9 +334,7 @@ class Worker:
                     inv_id,
                     snapshot,
                     digest,
-                    redaction={"applied": False, "reason": "synthetic source"}
-                    if snapshot.synthetic
-                    else {},
+                    redaction=redaction,
                 )
                 await events.append(
                     c,
@@ -433,16 +442,43 @@ class Worker:
         )
 
     async def _collect(
-        self, source: dict[str, Any], windows: Windows, focus: str | None
-    ) -> tuple[TelemetrySnapshot, AnalysisRequest]:
+        self, source: dict[str, Any], windows: Windows, focus: str | None, job: ClaimedJob
+    ) -> tuple[TelemetrySnapshot, AnalysisRequest, dict[str, Any]]:
         kind = source.get("kind")
         if kind == "scenario":
-            return await asyncio.to_thread(self.scenarios.snapshot, str(source.get("scenario")))
-        if kind == "live":
+            snapshot, request = await asyncio.to_thread(
+                self.scenarios.snapshot, str(source.get("scenario"))
+            )
+            return snapshot, request, {"applied": False, "reason": "synthetic source"}
+        if kind != "live":
+            raise PermanentError(f"unknown snapshot source kind {kind!r}")
+        if self.collector is None:
             raise SourceUnavailable(
                 "live telemetry collection is not configured in this deployment"
             )
-        raise PermanentError(f"unknown snapshot source kind {kind!r}")
+        try:
+            snapshot, request, redaction = await self.collector.collect(
+                job.org_id, windows, [focus] if focus else []
+            )
+        except NoTelemetryConfigured as exc:
+            raise PermanentError(str(exc)) from None
+        configured = [
+            o for o in snapshot.collection if o.status is not CollectionStatus.NOT_CONFIGURED
+        ]
+        if (
+            configured
+            and all(
+                o.status is CollectionStatus.FAILED
+                for o in configured
+                if o.modality is not Modality.CHANGES
+            )
+            and job.attempt < self.settings.job_max_attempts
+        ):
+            # Every telemetry backend failed: retry while attempts remain. On the last
+            # attempt the analysis runs anyway and reports the failures as coverage gaps.
+            failed = ", ".join(f"{o.provider} ({o.detail[:60]})" for o in configured[:5])
+            raise RetryableError(f"all telemetry backends failed: {failed}")
+        return snapshot, request, redaction
 
     # --- terminal transitions ------------------------------------------------------------
 

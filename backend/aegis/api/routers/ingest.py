@@ -18,6 +18,7 @@ from aegis import audit
 from aegis.api import pagination, views
 from aegis.api import schemas as S
 from aegis.api.deps import app_state, rate_limit, require
+from aegis.api.routers.incidents import live_ready
 from aegis.api.state import AppState
 from aegis.audit import Action
 from aegis.auth.principal import Principal
@@ -33,6 +34,7 @@ from aegis.ingest.alerts import (
     from_generic,
 )
 from aegis.ingest.service import ingest_alerts
+from aegis.investigations.sources import LiveSource
 from aegis.org_settings import read_settings
 
 router = APIRouter(tags=["ingestion"])
@@ -55,6 +57,8 @@ async def _ingest(
                 )
             ).scalar_one()
         )
+        if org_settings.default_source is None and await live_ready(c, state, principal.org_id):
+            org_settings = org_settings.model_copy(update={"default_source": LiveSource()})
         result = await ingest_alerts(
             c,
             org_id=principal.org_id,

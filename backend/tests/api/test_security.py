@@ -674,3 +674,15 @@ async def test_idle_and_absolute_session_expiry(
             email,
         )
         assert (await c.get("/api/v1/incidents")).status_code == 401, column
+
+
+def test_fastapi_native_telemetry_cannot_export_unredacted_exceptions(app):
+    """FastAPI's built-in OpenTelemetry would export exception messages/stack traces as logs
+    and auto-add exporters from OTEL_* variables; both must stay off."""
+    cfg = app._telemetry
+    assert (
+        cfg["logs"] is False and cfg["auto_configure"] is False and cfg["operation_spans"] is False
+    )
+    assert (
+        cfg["tracing"] is False and cfg["metrics"] is False
+    )  # no Aegis exporter configured in tests

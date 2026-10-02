@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import JSONResponse
+from fastapi.telemetry import TelemetryConfig
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -42,6 +43,23 @@ def migration_head() -> str | None:
 
 class UnsafeConfiguration(RuntimeError):
     pass
+
+
+def telemetry_config(settings: Settings) -> TelemetryConfig:
+    """FastAPI (>= 0.142) ships native OpenTelemetry that is on by default and, when OTEL_*
+    environment variables are present, adds exporters by itself and exports exception
+    messages and stack traces as logs. Aegis pins it: no native logs (they would bypass
+    redaction), no environment auto-configuration, request spans/metrics only when Aegis's
+    own exporter is configured, never for health probes."""
+    on = settings.otel_exporter_endpoint is not None
+    return {
+        "tracing": on,
+        "metrics": on,
+        "logs": False,
+        "operation_spans": False,
+        "auto_configure": False,
+        "exclude": lambda scope: scope.get("path") in ("/healthz", "/readyz"),
+    }
 
 
 def create_app(
@@ -92,6 +110,7 @@ def create_app(
         title="Aegis API",
         version=__version__,
         lifespan=lifespan,
+        telemetry=telemetry_config(settings),
         docs_url="/api/docs" if settings.dev_like else None,
         redoc_url=None,
         openapi_url="/api/v1/openapi.json",
