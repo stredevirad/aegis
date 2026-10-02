@@ -42,16 +42,16 @@ Depends on: M1, Council C.
 
 | Acceptance criterion | Status |
 |---|---|
-| PostgreSQL schema via Alembic; owner vs `aegis_app` roles; RLS + `FORCE` on every tenant table; claim and auth-lookup `SECURITY DEFINER` functions | PARTIAL — migration 0001 (identity, incidents, investigations, jobs, events, snapshots, evidence graph, audit) verified by `tests/db`; remaining tables arrive with their consumers |
-| Cross-tenant leak tests for every repository and route | PARTIAL — SQL-level and pooled-connection tests exist; repository and route tests follow the code |
-| Job queue: transactional enqueue, `SKIP LOCKED` claim with per-org cap, leases/heartbeats, bounded jittered retries, cancellation, idempotency, one active investigation per incident; tests for duplicate jobs, worker crash (lease expiry), cancellation | PARTIAL — claim function, per-org cap under concurrency and one-active constraint verified; Python queue layer PLANNED |
-| Worker runs snapshot collection (replay source first) → core → persists graph and verdict → events | PLANNED |
-| REST `/api/v1` (incidents, alerts, investigations, evidence, events, change-events, audit, me, organizations, users/memberships, api-keys) with pagination, filtering, sorting, stable error schema, request IDs, OpenAPI | PLANNED |
-| SSE investigation stream (event-table polling) + REST polling fallback | PLANNED |
-| OIDC BFF login with sessions, CSRF defence, API keys, RBAC matrix enforced server-side, tested per route | PLANNED |
-| Alertmanager + generic webhook ingestion with ingest-scoped keys, fingerprint dedup, grouping window, auto-investigation once per incident with cooldown | PLANNED |
-| Hash-chained append-only audit (no UPDATE/DELETE grants), verification endpoint | PARTIAL — chain trigger, append-only grants, verify function and timezone independence verified; endpoint PLANNED |
-| Configuration system with environment profiles and startup validation that rejects unsafe production settings | PARTIAL — settings + validation verified (`tests/test_config.py`, profile defaults to production); startup wiring follows the API |
+| PostgreSQL schema via Alembic; owner vs `aegis_app` roles; RLS + `FORCE` on every tenant table; claim and auth-lookup `SECURITY DEFINER` functions | DONE — migrations 0001–0004, catalog tests, downgrade round trip (`docs/database.md`) |
+| Cross-tenant leak tests for every repository and route | DONE for the M2 surface — SQL, pooled-connection, repository (queue/worker) and 16 API routes; later resources add their own |
+| Job queue: transactional enqueue, `SKIP LOCKED` claim with per-org cap, leases/heartbeats, bounded jittered retries, cancellation, idempotency, one active investigation per incident; tests for duplicate jobs, worker crash (lease expiry), cancellation | DONE (`tests/db/test_queue_and_worker.py`, `test_worker_process.py`) |
+| Worker runs snapshot collection (replay source first) → core → persists graph and verdict → events | DONE for the scenario (replay) source; live collection is M4 |
+| REST `/api/v1` (incidents, alerts, investigations, evidence, events, change-events, audit, me, organizations, users/memberships, api-keys) with pagination, filtering, sorting, stable error schema, request IDs, OpenAPI | DONE (`docs/api.md`) |
+| SSE investigation stream (event-table polling) + REST polling fallback | DONE — verified over a real TCP socket |
+| OIDC BFF login with sessions, CSRF defence, API keys, RBAC matrix enforced server-side, tested per route | PARTIAL — sessions, CSRF, API keys, RBAC matrix done; OIDC code flow with Dex pending |
+| Alertmanager + generic webhook ingestion with ingest-scoped keys, fingerprint dedup, grouping window, auto-investigation once per incident with cooldown | DONE (auto-investigation once per incident; deferral when the queue is full) |
+| Hash-chained append-only audit (no UPDATE/DELETE grants), verification endpoint | DONE (`/api/v1/audit/verify`, `aegis audit verify`) |
+| Configuration system with environment profiles and startup validation that rejects unsafe production settings | DONE (profile defaults to production; API and worker refuse unsafe settings) |
 
 ## M3 — LLM adjudication · `PLANNED`
 Depends on: M1, M2.

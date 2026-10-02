@@ -245,10 +245,12 @@ async def stream(
     stream_key = principal.label
     if state.open_streams[stream_key] >= state.settings.sse_max_streams_per_user:
         raise ApiError(429, "too_many_streams", "Too many open event streams")
-    state.open_streams[stream_key] += 1
     terminal_status = inv.status in queue.TERMINAL_INVESTIGATION
 
     async def gen() -> AsyncIterator[str]:
+        # Counted inside the generator: if the client disconnects before the body starts,
+        # the generator never runs and nothing is left counted (no slot leak).
+        state.open_streams[stream_key] += 1
         seq = start
         deadline = time.monotonic() + STREAM_MAX_SECONDS
         last_sent = time.monotonic()

@@ -10,6 +10,13 @@ application role cannot UPDATE or DELETE, and any edit by a more privileged role
 ``audit_verify()``). What it does not protect against: the database owner or operator, who
 can rewrite the chain consistently (documented trust boundary, docs/security-model.md §2).
 
+**Lock-order rule.** The chain trigger takes a per-organization advisory lock that is held
+until commit. Inserting an audit record must therefore be the *last* lock a transaction
+acquires: a transaction that holds the audit lock and then waits for another lock can
+deadlock with one that holds that lock and waits for the audit lock. Code that would
+otherwise audit in the middle of a transaction collects records in an :class:`AuditBuffer`
+and flushes it at the end.
+
 Security events that happen before an organization is known (unknown API key, failed login)
 cannot be attributed to a tenant and are written to the structured security log instead
 (``aegis.security`` logger), with the request ID and no secret material.
@@ -130,3 +137,41 @@ async def record(
 def security_event(event: str, **fields: str | int | None) -> None:
     """Pre-tenant security event (no organization yet): structured log, never a secret."""
     security_log.warning(event, extra={"security_event": event, **correlation(), **fields})
+
+
+@dataclass
+class _Pending:
+    action: Action
+    target_type: str | None
+    target_id: str | UUID | None
+    details: dict[str, Any] | None
+
+
+class AuditBuffer:
+    """Audit records collected during a transaction and written at its end (lock-order rule)."""
+
+    def __init__(self) -> None:
+        self._pending: list[_Pending] = []
+
+    def add(
+        self,
+        action: Action,
+        *,
+        target_type: str | None = None,
+        target_id: str | UUID | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        self._pending.append(_Pending(action, target_type, target_id, details))
+
+    async def flush(self, conn: AsyncConnection, org_id: UUID, actor: Actor) -> None:
+        for item in self._pending:
+            await record(
+                conn,
+                org_id,
+                actor,
+                item.action,
+                target_type=item.target_type,
+                target_id=item.target_id,
+                details=item.details,
+            )
+        self._pending.clear()

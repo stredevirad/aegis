@@ -436,3 +436,41 @@ async def test_cancel_from_other_tenant_is_not_found(app_engine, two_orgs, empty
             == "not_found"
         )
     assert (await _inv(app_engine, two_orgs["a"], res.investigation_id))["status"] == "queued"
+
+
+async def test_worker_error_logs_are_redacted(
+    app_engine, two_orgs, empty_queue, settings, registry, monkeypatch
+):
+    """The investigation row was already clean; the log line (with traceback) must be too."""
+    import io
+    import json
+    import logging
+
+    from aegis.observability.logging import JsonFormatter
+
+    org = two_orgs["a"]
+    await _enqueue(app_engine, org, await _incident(app_engine, org))
+
+    def broken(_scenario_id):
+        raise ValueError(
+            "connect failed password=hunter2 via http://user:secret@prom:9090 Bearer abcdefghijklmnop"
+        )
+
+    monkeypatch.setattr(registry, "snapshot", broken)
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonFormatter())
+    logger = logging.getLogger("aegis.worker")
+    logger.addHandler(handler)
+    try:
+        w = Worker(app_engine, settings, registry, worker_id="w-log")
+        assert await w.process(await queue.claim(app_engine, w.worker_id, 30, 4)) == "failed"
+    finally:
+        logger.removeHandler(handler)
+    output = stream.getvalue()
+    assert (
+        "hunter2" not in output and "user:secret" not in output and "abcdefghijklmnop" not in output
+    )
+    record = json.loads(output.strip().splitlines()[-1])
+    assert record["msg"] == "job failed" and "ValueError" in record["exc"]
+    assert record["job_id"] and record["org_id"] == str(org)

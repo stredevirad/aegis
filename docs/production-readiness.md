@@ -8,8 +8,8 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 
 | Suite | Command (from) | Result | Date |
 |---|---|---|---|
-| Backend unit + core + benchmark tests | `uv run --frozen pytest -m "not db and not live"` (`backend/`) | 59 passed | 2026-10-02 |
-| Backend PostgreSQL tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m db` (`backend/`) | 21 passed | 2026-10-02 |
+| Backend unit + core + benchmark tests | `uv run --frozen pytest -m "not db and not live"` (`backend/`) | 114 passed | 2026-10-02 |
+| Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m db` (`backend/`) | 80 passed | 2026-10-02 |
 | Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 | 2026-10-02 |
 | Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-10-02 |
 | Format / lint / types | `uv run --frozen ruff format --check .`, `ruff check .`, `mypy` (`backend/`) | clean | 2026-10-02 |
@@ -17,6 +17,29 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 ## Verification log
 
 Newest first. Each entry: what was run, the observed result, and what it does not show.
+
+### 2026-10-02 — M2 slice: queue, worker, API, ingestion, auth (dev login + API keys), CLI
+
+Commands (from `backend/`, PostgreSQL 16.15 from `deploy/compose.dev.yaml`): `uv run --frozen pytest` → **194 passed** (114 without a database, 80 against PostgreSQL as `aegis_app`); `ruff format --check`, `ruff check`, `mypy` (strict) clean; benchmark gate 15/15, 0 confident-wrong.
+
+What is exercised (test files in parentheses):
+
+* **Queue and worker** (`tests/db/test_queue_and_worker.py`, `test_worker_process.py`): transactional enqueue; idempotency keys; one active investigation per incident under 8 concurrent starts; queue limit (manual → 429, automatic → deferred, promoted later); end-to-end scenario investigation with persisted evidence, events and audit; a stalled worker fenced out after another reclaims its job; heartbeat-detected lease loss aborts the pipeline before any write; crash with attempts left → reclaimed; attempts exhausted → reaped (job `dead`, investigation `failed`, event) atomically; retryable failure → backoff → permanent failure; unexpected errors fail without leaking exception text (row **and** redacted JSON log line); cancellation queued/running; `Worker.run` with concurrency 2 and clean stop; killed worker (grace 0) mid-job → second worker reclaims and completes.
+* **API slice** (`tests/api/test_slice.py`): Alertmanager webhook with an ingest key → incident → automatic investigation → worker → CONFIRMED/PLAUSIBLE verdict whose cited evidence IDs all resolve to stored evidence with provenance; evidence paging; graph; snapshot summary; ordered events; SSE replay from `Last-Event-ID`; audit chain intact.
+* **Real network** (`tests/api/test_http_stack.py`): uvicorn on a TCP port + `Worker.run`; the SSE client receives `queued` before any worker exists (a buffering transport would time out), then streams through `completed`; feature-flag scenario → CONFIRMED, `change_induced:feature_flag`.
+* **Security** (`tests/api/test_security.py`, `test_ingest_concurrency.py`): every `/api/v1` route declares a permission; RBAC matrix per role (viewers and reviewers cannot start investigations); CSRF (missing header, wrong origin); cross-tenant access to 16 routes returns 404 and lists are empty; API keys hashed, shown once, rotated with grace, revoked, expired, forged; ingest keys cannot read or administer; membership removal ends sessions and revokes the member's keys; role changes apply to live sessions; last-admin protection; invitations accepted only for the matching verified email; payloads cannot choose the organization; hostile alert content neutralised (control/bidi characters, `javascript:` URLs, oversized annotations, far-future timestamps); body-size limit; validation errors never echo values; rate limiting; unsafe production configuration refuses to start; 20 concurrent overlapping payloads mixing re-deliveries × 3 rounds without deadlock (**this test reproduced `deadlock detected` on the previous code**).
+* **Operator CLI** (`tests/db/test_cli.py`): idempotent organization bootstrap with admin invitation; invitations; disabling a user deletes sessions and revokes keys in every organization; operator functions not executable by `aegis_app`; process commands refuse unsafe configuration.
+* **Redaction** (`tests/test_redact.py`, 47 cases) and **alert normalisation** (`tests/test_ingest_alerts.py`).
+
+Defects found and fixed in this step (each has a regression test):
+
+1. Core evidence lacked provenance for error-origin, log-rate, edge-latency, edge-change and coverage-gap items, so cited evidence could not be traced to a telemetry source. All evidence now carries sources; verdicts unchanged (`tests/core/test_benchmark_and_logs.py::test_every_evidence_item_carries_provenance`).
+2. Alert dedup used the clamped/filled start time as identity: a sender whose clock ran ahead, or that sent no start time, created a new alert row on every re-send.
+3. Ingestion deadlock under concurrent overlapping payloads (audit-chain lock taken mid-transaction; re-delivery row locks before group locks). Fixed with a per-organization ingestion lock and the "audit insert last" rule; pure duplicates no longer write audit records.
+4. SSE stream counter could leak a slot when the client disconnected before streaming began.
+5. Worker error logs would have carried secrets from exception messages once JSON logging existed; the formatter now redacts message, extras and traceback.
+
+What this does **not** show: OIDC login (next step; dev login and API keys only so far); live telemetry collection (M4 — investigations run on synthetic scenario sources, clearly marked `synthetic`); behaviour across multiple API replicas (rate limits are per replica by design); performance at the target scale (M10).
 
 ### 2026-10-02 — session 2 start: re-verification of M0/M1 and the uncommitted M2 database foundation
 
@@ -37,5 +60,5 @@ Newest first. Each entry: what was run, the observed result, and what it does no
 |---|---|---|
 | M0 audit, decisions, research preservation | DONE | roadmap; research suite 159 passed |
 | M1 pure RCA core + benchmark gate | DONE (LLM-free) | core tests; benchmark gate |
-| M2 persistence, jobs, API, auth, tenancy, audit, ingestion | IN PROGRESS | schema 0001 + RLS + audit chain + claim function verified; everything else PLANNED |
+| M2 persistence, jobs, API, auth, tenancy, audit, ingestion | IN PROGRESS | schema 0001–0004, queue, worker, API, ingestion, API keys, dev sessions, CLI verified; OIDC pending |
 | M3–M11 | PLANNED | — |

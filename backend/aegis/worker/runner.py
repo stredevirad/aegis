@@ -93,12 +93,21 @@ class Worker:
     # --- process loop ---------------------------------------------------------------------
 
     async def run(self, stop: asyncio.Event) -> None:
+        """Run until ``stop`` is set. Slots stop claiming immediately; running jobs get
+        ``worker_shutdown_grace_seconds`` to finish. Jobs still running after that are
+        abandoned without further writes: their lease expires and another worker reclaims
+        them (or the reaper fails them when no attempts remain)."""
         slots = [
             asyncio.create_task(self._slot(stop), name=f"slot-{i}")
             for i in range(self.settings.worker_concurrency)
         ]
         maintenance = asyncio.create_task(self._maintenance(stop), name="maintenance")
         await stop.wait()
+        _, unfinished = await asyncio.wait(
+            slots, timeout=self.settings.worker_shutdown_grace_seconds
+        )
+        for task in unfinished:
+            task.cancel()
         await asyncio.gather(*slots, return_exceptions=True)
         maintenance.cancel()
         await asyncio.gather(maintenance, return_exceptions=True)
@@ -131,6 +140,9 @@ class Worker:
                 await asyncio.wait_for(stop.wait(), timeout=10)
 
     async def maintenance_once(self) -> None:
+        if self.settings.worker_health_file is not None:
+            # liveness for exec probes: the maintenance loop (and the event loop) is alive
+            self.settings.worker_health_file.touch()
         for job_id, org_id, inv_id in await queue.reap_dead(self.engine):
             log.warning("reaped dead job", extra={"job_id": str(job_id), "org_id": str(org_id)})
             async with tenant_tx(self.engine, org_id) as c:

@@ -9,15 +9,22 @@ One payload is one transaction, whatever the number of alerts (bounded by
 * **Grouping.** Alerts of the same (service, environment) attach to the incident that is
   open for grouping for that key, as long as it received an alert within the organization's
   grouping window; otherwise grouping on the old incident closes and a new incident opens.
-  Each group is serialised with a transaction-scoped advisory lock (taken in sorted order, so
-  concurrent payloads cannot deadlock) and backed by a partial unique index: two concurrent
-  webhooks for the same group produce one incident.
+  Two concurrent webhooks for the same group produce one incident (see Concurrency).
 * **Lifecycle.** When every alert of an incident is resolved and ``auto_resolve`` is on, the
   incident becomes ``resolved`` and grouping closes. A resolved alert with no recorded firing
   occurrence is counted and ignored (no incident is created for it).
 * **Automatic investigation.** A newly created incident is investigated once
   (``auto_investigated_at``) when ``auto_investigate`` is on and a default source exists;
   queue limits defer it (recorded, never dropped).
+
+**Concurrency.** The first statement of every ingestion transaction takes one per-organization
+advisory lock, so ingestion for an organization is serialised and no other lock order is
+possible between two payloads (per-group locks were dropped: a payload touching groups
+{G1, G2} and one touching {G2} could deadlock against the audit chain lock). The partial
+unique index on open incident groups remains as a backstop. Audit records are buffered and
+written last (the audit lock-order rule, ``aegis.audit.log``). Re-deliveries that change
+nothing new (pure duplicates) write no audit record, so Alertmanager's periodic resends do
+not grow the hash chain.
 """
 
 from __future__ import annotations
@@ -33,8 +40,7 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from aegis import audit
-from aegis.audit import Action, Actor
+from aegis.audit import Action, Actor, AuditBuffer
 from aegis.db.tables import alerts, incidents
 from aegis.ingest.alerts import SEVERITY_RANK, NormalizedAlert
 from aegis.investigations import windows as win
@@ -206,6 +212,11 @@ async def ingest_alerts(
     now: datetime | None = None,
 ) -> IngestResult:
     now = now or datetime.now(UTC)
+    await conn.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+        {"k": f"aegis-ingest:{org_id}"},
+    )
+    pending = AuditBuffer()
     result = IngestResult(received=len(batch))
     result.clock_skew_clamped = sum(1 for a in batch if a.clock_skew_clamped)
     known = await _existing_occurrences(conn, org_id, batch)
@@ -231,15 +242,11 @@ async def ingest_alerts(
                 .values(last_alert_at=now, updated_at=func.now())
             )
         else:
-            await _maybe_resolve(conn, org_id, incident_id, settings, actor, result)
+            await _maybe_resolve(conn, org_id, incident_id, settings, pending, result)
 
     window = timedelta(minutes=settings.grouping_window_minutes)
-    for group_key in sorted(groups):  # sorted lock order: no deadlock between payloads
+    for group_key in sorted(groups):
         members = groups[group_key]
-        await conn.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
-            {"k": f"aegis-group:{org_id}:{group_key}"},
-        )
         incident = await _open_incident(conn, org_id, group_key, now, window)
         first = min(members, key=lambda m: m.effective_start)
         severity = _max_severity([m.severity for m in members])
@@ -269,10 +276,7 @@ async def ingest_alerts(
                 )
             ).scalar_one()
             result.incidents_created.append(incident_id)
-            await audit.record(
-                conn,
-                org_id,
-                actor,
+            pending.add(
                 Action.INCIDENT_CREATED,
                 target_type="incident",
                 target_id=incident_id,
@@ -310,6 +314,7 @@ async def ingest_alerts(
                 first.effective_start,
                 settings,
                 actor,
+                pending,
                 scenarios,
                 queue_limit,
                 max_attempts,
@@ -317,14 +322,13 @@ async def ingest_alerts(
                 result,
             )
 
-    await audit.record(
-        conn,
-        org_id,
-        actor,
-        Action.ALERTS_INGESTED,
-        target_type="alert_batch",
-        details={k: v for k, v in result.as_dict().items() if k != "investigations"},
-    )
+    if result.new_occurrences or result.incidents_created or result.incidents_resolved:
+        pending.add(
+            Action.ALERTS_INGESTED,
+            target_type="alert_batch",
+            details={k: v for k, v in result.as_dict().items() if k != "investigations"},
+        )
+    await pending.flush(conn, org_id, actor)  # audit last: see the lock-order rule
     return result
 
 
@@ -333,7 +337,7 @@ async def _maybe_resolve(
     org_id: UUID,
     incident_id: UUID,
     settings: OrgSettings,
-    actor: Actor,
+    pending: AuditBuffer,
     result: IngestResult,
 ) -> None:
     if not settings.auto_resolve:
@@ -367,10 +371,7 @@ async def _maybe_resolve(
     ).first()
     if resolved is not None:
         result.incidents_resolved.append(incident_id)
-        await audit.record(
-            conn,
-            org_id,
-            actor,
+        pending.add(
             Action.INCIDENT_AUTO_RESOLVED,
             target_type="incident",
             target_id=incident_id,
@@ -385,6 +386,7 @@ async def _auto_investigate(
     started_at: datetime,
     settings: OrgSettings,
     actor: Actor,
+    pending: AuditBuffer,
     scenarios: ScenarioRegistry,
     queue_limit: int,
     max_attempts: int,
@@ -426,10 +428,7 @@ async def _auto_investigate(
         "skipped": Action.INVESTIGATION_SKIPPED,
         "existing": Action.INVESTIGATION_STARTED,
     }[res.state]
-    await audit.record(
-        conn,
-        org_id,
-        actor,
+    pending.add(
         action,
         target_type="incident",
         target_id=incident_id,

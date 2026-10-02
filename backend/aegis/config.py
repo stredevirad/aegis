@@ -69,7 +69,10 @@ class Settings(BaseSettings):
 
     worker_id: str | None = None
     worker_concurrency: int = Field(default=2, ge=1, le=64)
-    job_lease_seconds: int = Field(default=120, ge=15)
+    job_lease_seconds: int = Field(default=120, ge=5)
+    worker_shutdown_grace_seconds: float = Field(default=30.0, ge=0, le=600)
+    # Touched by the worker's maintenance loop every 10 s (exec liveness probe).
+    worker_health_file: Path | None = None
     job_heartbeat_seconds: int = Field(default=15, ge=1)
     job_max_attempts: int = Field(default=3, ge=1, le=10)
     org_running_cap: int = Field(default=4, ge=1)
