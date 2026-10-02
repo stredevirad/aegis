@@ -25,6 +25,8 @@ class OrgSettings(BaseModel):
     auto_resolve: bool = True
     # Remediation execution is disabled until an admin enables it (ADR-014).
     remediation_enabled: bool = False
+    # Two-person rule (default): the approver must differ from the proposer.
+    remediation_allow_self_approval: bool = False
     # AI adjudication (ADR-009): off by default. The provider is one of the organization's
     # integrations with an ``llm`` connector; cloud connectors also need ai_allow_cloud.
     # There is never a fallback to another provider.

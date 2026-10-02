@@ -20,7 +20,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from aegis import __version__
 from aegis.api import errors
 from aegis.api.middleware import RequestContextMiddleware
-from aegis.api.routers import admin, auth, incidents, ingest, integrations, investigations
+from aegis.api.routers import (
+    admin,
+    auth,
+    incidents,
+    ingest,
+    integrations,
+    investigations,
+    remediation,
+)
 from aegis.api.state import AppState
 from aegis.auth.oidc import OidcClient
 from aegis.config import Settings, validate_for_profile
@@ -126,6 +134,7 @@ def create_app(
         ingest.router,
         admin.router,
         integrations.router,
+        remediation.router,
     ):
         v1.include_router(r)
     app.include_router(v1)

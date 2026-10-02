@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     llm_global_concurrency: int = Field(default=1, ge=1, le=64)
     llm_slot_wait_seconds: float = Field(default=300.0, ge=0, le=3600)
     llm_slot_lease_seconds: int = Field(default=600, ge=30, le=7200)
+    # Remediation (ADR-014): approval validity and the settle time before verification.
+    remediation_approval_minutes: int = Field(default=15, ge=1, le=240)
+    remediation_verify_delay_seconds: int = Field(default=120, ge=0, le=3600)
     # Touched by the worker's maintenance loop every 10 s (exec liveness probe).
     worker_health_file: Path | None = None
     job_heartbeat_seconds: int = Field(default=15, ge=1)

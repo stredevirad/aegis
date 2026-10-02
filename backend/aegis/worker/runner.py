@@ -52,6 +52,7 @@ from aegis.jobs.events import EventKind
 from aegis.jobs.queue import ClaimedJob, LeaseLost, RetryableError, Windows
 from aegis.llm.adjudicate import Adjudicator
 from aegis.observability.context import investigation_id_var, job_id_var, org_id_var
+from aegis.remediation.runner import Verifier
 
 log = logging.getLogger("aegis.worker")
 
@@ -90,12 +91,14 @@ class Worker:
         poll_seconds: float = 1.0,
         collector: LiveCollector | None = None,
         adjudicator: Adjudicator | None = None,
+        verifier: Verifier | None = None,
     ) -> None:
         self.engine = engine
         self.settings = settings
         self.scenarios = scenarios
         self.collector = collector
         self.adjudicator = adjudicator
+        self.verifier = verifier
         self.worker_id = (
             worker_id or settings.worker_id or f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
         )
@@ -183,6 +186,8 @@ class Worker:
                     state="queued",
                     actor="scheduler",
                 )
+        if self.verifier is not None:
+            await self.verifier.run_due(self.worker_id)
 
     # --- one job --------------------------------------------------------------------------
 

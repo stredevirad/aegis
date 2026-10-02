@@ -179,11 +179,9 @@ class Provider:
             "options": {
                 "temperature": 0,
                 "num_predict": call.max_output_tokens,
-                **(
-                    {"num_ctx": int(self.connector.options["context_window"])}
-                    if self.connector.options.get("context_window")
-                    else {}
-                ),
+                # Always explicit: Ollama's default context (2048 tokens) silently truncates
+                # the prompt — observed live with llama3.2:1b (prompt_eval_count 2050).
+                "num_ctx": context_window(self.connector),
             },
         }
         data = await self._post("/api/chat", body)
@@ -278,3 +276,24 @@ def _int(v: Any) -> int | None:
         return int(v) if v is not None else None
     except (TypeError, ValueError):
         return None
+
+
+DEFAULT_CONTEXT_WINDOW = 8192
+
+
+def context_window(connector: Connector) -> int:
+    """Tokens of context the operator configured for this model (default 8192)."""
+    try:
+        return max(
+            2048,
+            min(int(connector.options.get("context_window", DEFAULT_CONTEXT_WINDOW)), 1_000_000),
+        )
+    except (TypeError, ValueError):
+        return DEFAULT_CONTEXT_WINDOW
+
+
+def prompt_budget_chars(connector: Connector, max_output_tokens: int) -> int:
+    """Characters of data the prompt may carry so prompt + output fit the context window.
+    Conservative: ~3 characters per token for JSON-heavy text, 800 tokens for instructions."""
+    tokens = context_window(connector) - max_output_tokens - 800
+    return max(4_000, min(tokens * 3, 200_000))

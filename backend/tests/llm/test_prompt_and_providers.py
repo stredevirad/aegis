@@ -123,6 +123,7 @@ async def test_ollama_request_and_response():
         and sent["body"]["format"] == OUTPUT_SCHEMA
         and sent["body"]["think"] is False
     )
+    assert sent["body"]["options"]["num_ctx"] == 8192  # never Ollama's silent 2048 default
     assert sent["body"]["options"]["temperature"] == 0 and sent["body"]["messages"][0] == {
         "role": "system",
         "content": "SYS",

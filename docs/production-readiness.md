@@ -8,7 +8,7 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 
 | Suite | Command (from) | Result | Date |
 |---|---|---|---|
-| Backend unit + core + benchmark tests | `uv run --frozen pytest -m "not db and not live"` (`backend/`) | 114 passed | 2026-10-02 |
+| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 350 passed, gate green | 2026-10-02 |
 | Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml --profile auth up -d --wait` then `uv run --frozen pytest -m db` (`backend/`) | 99 passed (incl. 1 live test against Dex) | 2026-10-02 |
 | Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 | 2026-10-02 |
 | Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-10-02 |
@@ -17,6 +17,30 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 ## Verification log
 
 Newest first. Each entry: what was run, the observed result, and what it does not show.
+
+### 2026-10-02 — M4 egress/collection, M3 AI adjudication, M6 remediation core
+
+`backend/scripts/check.sh -m "not live"` → format, lint, mypy (strict), **350 passed**, benchmark gate 15/15 — green. (The run took 9.5 min with under 2 GB of free RAM while a frontend build ran in parallel; the same suite took 85 s earlier in the day. Test runtime is not a performance claim.)
+
+Live runs (marker `live`, executed and observed):
+
+* **Live RCA against the demo stack** (`tests/integrations/test_live_demo.py`, 303 s incl. designed waits): 3 min healthy baseline, catalog error flag set to 40 % and recorded as a change event, Aegis collected Prometheus, Jaeger and Loki through the connector registry and egress client → **CONFIRMED, support strong, root cause `catalog`, mechanism `change_induced:feature_flag`**, checks passed: propagation, isolation, change_scope, modality_agreement. One run on one fault; not an accuracy estimate.
+* **Live Ollama** (`tests/llm/test_ollama_live.py`, llama3.2:1b, CPU, Ollama 0.35.0):
+  * first run: `prompt_tokens=2050` on both scenarios → Ollama's default 2048-token context had silently truncated the ~5k-token prompt. **Fixed**: `num_ctx` always explicit (connector `context_window`, default 8192) and the prompt sized to fit; regression assertion `prompt_tokens > 2100` and a unit test on `num_ctx`.
+  * in that run the model escalated the prompt-injection scenario to CONFIRMED (deterministic PLAUSIBLE), invented candidates (including the data-block marker) and cited a provider name as evidence — **all rejected by the validator**; the deterministic verdict stood.
+  * second run (8192 context): s10 prompt_tokens 5470, 266 s, model kept PLAUSIBLE/moderate but selected no candidate → rejected; s05 output cut off by the 900-token cap → invalid JSON (the adjudicator handles this as a schema failure → one repair → deterministic fallback). The test now records such outcomes instead of failing.
+  * Conclusion recorded honestly: with a 1B local model, AI assessments were rejected in every observed case; the product's answer was the deterministic one. No model-accuracy claim is made.
+
+Exercised by tests (not live):
+
+* **Egress/SSRF** (66 cases): metadata/link-local/mixed DNS answers, IPv4-in-IPv6 forms, loopback/private policy, Aegis's database by name and by resolved address, path allowlists (no Prometheus admin API, no Ollama pull/delete), Host/SNI pinning, redirects refused, size caps, timeouts, bounded retries, forbidden methods/headers; registry rejects credentials in URLs, wildcards, infrastructure collisions, plain http and loopback outside development.
+* **Integrations API** (6): tenant A cannot bind tenant B's connector or pass a URL; credentials write-only and encrypted; a ciphertext copied to another tenant's row is not decrypted (nothing sent); metadata destination refused at request time.
+* **Collectors** (10 contract tests on recorded responses): hostile service names stay inside escaped PromQL/LogQL matchers; OpenSearch uses structured filters only; span status kept; partial/failed/empty distinguished; truncation flagged; redaction at collection.
+* **Live worker path** (3, recorded responses): live investigation completes with collection outcomes and redaction record; all backends down → retry → last attempt reports coverage gaps; org without integrations fails with a clear reason.
+* **AI layer** (20 validator attack cases, 13 prompt/provider tests, 8 worker tests, 2 API tests): see `docs/ai.md`.
+* **Remediation** (9, against the real demo flag service over HTTP through the egress client): full two-person lifecycle with rollback; self-approval refused; stale proposal expires (state committed before the error — **a defect found by these tests**: errors raised inside the transaction had rolled back the `expired` status and its audit record); target changed after approval → aborted without writing; expired and tampered approvals cannot execute; parameters cannot come from the request; cross-tenant 404; suggestions follow the deterministic root cause; verification of a synthetic diagnosis is `not_evaluable`.
+
+Not shown: OpenAI/Anthropic live calls (no credentials — BLOCKED), Tempo and Kubernetes collectors (not implemented), live post-action verification against the demo stack (next), notifications (next).
 
 ### 2026-10-02 — M2 complete: OIDC authorization code + PKCE
 
@@ -71,4 +95,8 @@ What this does **not** show: OIDC login (next step; dev login and API keys only 
 | M0 audit, decisions, research preservation | DONE | roadmap; research suite 159 passed |
 | M1 pure RCA core + benchmark gate | DONE (LLM-free) | core tests; benchmark gate |
 | M2 persistence, jobs, API, auth, tenancy, audit, ingestion | DONE | schema 0001–0004, queue, worker, API, ingestion, OIDC (fake IdP + live Dex), API keys, RBAC, CLI — see log |
-| M3–M11 | PLANNED | — |
+| M3 LLM adjudication | PARTIAL | adapters, validator, policy, slots, records done; live OpenAI/Anthropic blocked (no credentials); LLM benchmark M10 |
+| M4 live integrations | PARTIAL | registry, egress, Prometheus/Jaeger/Loki/OpenSearch, integrations API, live demo RCA; Tempo/Kubernetes planned |
+| M5 web application | IN PROGRESS | being built in a separate worktree |
+| M6 remediation and notifications | PARTIAL | remediation lifecycle done and tested; live verification and notifications pending |
+| M7–M11 | PLANNED | — |

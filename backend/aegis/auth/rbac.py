@@ -55,6 +55,7 @@ class Permission(StrEnum):
     REMEDIATION_PROPOSE = "remediation.propose"
     REMEDIATION_APPROVE = "remediation.approve"
     REMEDIATION_EXECUTE = "remediation.execute"
+    REMEDIATION_MANAGE = "remediation.manage"  # the action catalog (admin)
 
 
 _READ = frozenset(
@@ -105,6 +106,8 @@ NEVER_FOR_KEYS = frozenset(
         Permission.INTEGRATION_MANAGE,
         Permission.REMEDIATION_APPROVE,
         Permission.REMEDIATION_EXECUTE,
+        Permission.REMEDIATION_MANAGE,
+        Permission.REMEDIATION_PROPOSE,
         Permission.INVESTIGATION_START,
         Permission.AUDIT_READ,
     }

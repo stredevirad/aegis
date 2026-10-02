@@ -43,7 +43,14 @@ from aegis.integrations.registry import ConnectorKind, Registry
 from aegis.integrations.store import usable_integrations
 from aegis.llm import prompt as prompts
 from aegis.llm import slots
-from aegis.llm.providers import Message, ModelCall, Provider, ProviderError, provider_options
+from aegis.llm.providers import (
+    Message,
+    ModelCall,
+    Provider,
+    ProviderError,
+    prompt_budget_chars,
+    provider_options,
+)
 from aegis.llm.schema import OUTPUT_SCHEMA, Adjudication
 from aegis.llm.validate import validate
 from aegis.org_settings import read_settings
@@ -134,7 +141,9 @@ class Adjudicator:
             "cloud_opt_in": org.ai_allow_cloud,
             "budget_24h": org.ai_daily_token_budget,
         }
-        built = prompts.build(analysis)
+        built = prompts.build(
+            analysis, max_chars=prompt_budget_chars(integ.connector, org.ai_max_output_tokens)
+        )
         provider = self.provider_factory(integ.connector, integ.credential, self.egress)
         base = {"provider": integ.connector.id, "api": api, "model": model, "locality": locality}
 

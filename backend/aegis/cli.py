@@ -79,12 +79,17 @@ async def _run_worker(settings: Settings) -> None:
     registry, keyring = connector_registry.load(settings), Keyring.from_settings(settings)
     collector = LiveCollector(engine, registry, keyring, egress)
     adjudicator = Adjudicator(engine, settings, registry, keyring, egress)
+    from aegis.remediation.runner import Verifier
+    from aegis.remediation.service import Remediation
+
+    verifier = Verifier(engine, Remediation(engine, settings, registry, keyring, egress), collector)
     worker = Worker(
         engine,
         settings,
         ScenarioRegistry(settings.scenario_dir),
         collector=collector,
         adjudicator=adjudicator,
+        verifier=verifier,
     )
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

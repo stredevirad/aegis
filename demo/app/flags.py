@@ -2,7 +2,7 @@
 
     GET  /flags                 all flags {key: {value, version, updated_at, updated_by}}
     GET  /flags/{key}           one flag
-    PUT  /flags/{key}           {"value": "...", "actor": "...", "if_version": n}
+    PUT|POST /flags/{key}       {"value": "...", "actor": "...", "if_version": n}
                                 compare-and-set when if_version is given (409 on mismatch)
     GET  /healthz
 
@@ -84,6 +84,7 @@ def get_flag(key: str) -> dict:
 
 
 @app.put("/flags/{key}")
+@app.post("/flags/{key}")  # Aegis's egress client sends POST (no PUT)
 def put_flag(key: str, body: FlagWrite) -> dict:
     with _lock:
         current = _flags.get(key)

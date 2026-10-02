@@ -53,27 +53,27 @@ Depends on: M1, Council C.
 | Hash-chained append-only audit (no UPDATE/DELETE grants), verification endpoint | DONE (`/api/v1/audit/verify`, `aegis audit verify`) |
 | Configuration system with environment profiles and startup validation that rejects unsafe production settings | DONE (profile defaults to production; API and worker refuse unsafe settings) |
 
-## M3 — LLM adjudication · `PLANNED`
-Depends on: M1, M2.
+## M3 — LLM adjudication · `PARTIAL`
+Depends on: M1, M2. Details: [`ai.md`](ai.md).
 
-| Acceptance criterion |
-|---|
-| Provider interface with capability metadata; Ollama, OpenAI-compatible, Anthropic adapters; contract tests with recorded payloads; live test against local Ollama |
-| Schema-constrained output; pure validator enforcing citation validity, ceiling, classification ordering, candidate membership; one repair attempt; deterministic fallback |
-| Untrusted-data channel in prompts; injection scenarios in the benchmark |
-| Global LLM slot pool, per-call/total timeouts, retry policy, circuit breaker, token and cost accounting, per-org provider allowlist (no silent local→cloud fallback) |
-| Failure scenarios: malformed JSON, empty output, timeout, provider down, hallucinated evidence/service, contradictory output, context overflow |
-| Benchmark reports deterministic-only vs deterministic+LLM with repeated runs |
+| Acceptance criterion | Status |
+|---|---|
+| Provider interface with capability metadata; Ollama, OpenAI-compatible, Anthropic adapters; contract tests with recorded payloads; live test against local Ollama | PARTIAL — three adapters with request/response shape tests (constructed payloads); live Ollama test passes (`tests/llm/test_ollama_live.py`); OpenAI/Anthropic live calls **BLOCKED** (no credentials in this environment) |
+| Schema-constrained output; pure validator enforcing citation validity, ceiling, classification ordering, candidate membership; one repair attempt; deterministic fallback | DONE (`tests/llm/test_validate.py`, `tests/db/test_ai_adjudication.py`) |
+| Untrusted-data channel in prompts; injection scenarios in the benchmark | PARTIAL — channel done and tested; the injection scenario was run against a live model (rejected by the validator); LLM benchmark runs are M10 |
+| Global LLM slot pool, per-call/total timeouts, retry policy, circuit breaker, token and cost accounting, per-org provider allowlist (no silent local→cloud fallback) | PARTIAL — all but cost accounting (tokens are accounted; no price table) |
+| Failure scenarios: malformed JSON, empty output, timeout, provider down, hallucinated evidence/service, contradictory output, context overflow | PARTIAL — all except an explicit "contradictory claims" case; context overflow handled by sizing the prompt to the context window (found live) |
+| Benchmark reports deterministic-only vs deterministic+LLM with repeated runs | PLANNED (M10) |
 
-## M4 — Live telemetry integrations · `PLANNED`
-Depends on: M1, M2.
+## M4 — Live telemetry integrations · `PARTIAL`
+Depends on: M1, M2. Details: [`integrations.md`](integrations.md).
 
-| Acceptance criterion |
-|---|
-| SSRF-safe egress client (pinned DNS, deny ranges, allowlist, no redirects, size caps) with tests |
-| Prometheus (RED signals via configurable metric mapping), Loki and OpenSearch logs, Jaeger and Tempo traces with span status, Kubernetes events/rollouts, change events; all queries built from validated parameters, never from free text |
-| Contract tests from recorded real responses for each backend; live tests against the demo stack |
-| Integration configuration API with encrypted credentials and connectivity test |
+| Acceptance criterion | Status |
+|---|---|
+| SSRF-safe egress client (pinned DNS, deny ranges, allowlist, no redirects, size caps) with tests | DONE (`tests/integrations/test_egress.py`, `tests/api/test_integrations.py`) |
+| Prometheus (RED signals via configurable metric mapping), Loki and OpenSearch logs, Jaeger and Tempo traces with span status, Kubernetes events/rollouts, change events; all queries built from validated parameters, never from free text | PARTIAL — Prometheus, Loki, OpenSearch, Jaeger, change events done; Tempo and Kubernetes PLANNED |
+| Contract tests from recorded real responses for each backend; live tests against the demo stack | DONE for Prometheus, Jaeger, Loki (recorded from the demo stack; live test CONFIRMED the injected flag fault); OpenSearch fixture constructed (no OpenSearch in the demo stack) |
+| Integration configuration API with encrypted credentials and connectivity test | DONE |
 
 ## M5 — Web application · `PLANNED`
 Depends on: M2 (M3/M4 for full content).
@@ -84,14 +84,14 @@ Depends on: M2 (M3/M4 for full content).
 | Visual distinction between observation, inference, hypothesis, verified finding, uncertainty |
 | Unit/component tests; accessibility checks; Playwright E2E against the compose stack |
 
-## M6 — Remediation and notifications · `PLANNED`
-Depends on: M2, M4.
+## M6 — Remediation and notifications · `PARTIAL`
+Depends on: M2, M4. Details: [`remediation.md`](remediation.md).
 
-| Acceptance criterion |
-|---|
-| Proposal → approval (role + two-person rule) → execution → verification → rollback via inverse; idempotent execution; full audit |
-| One real executor (flag service) used by the demo; execution disabled per org by default |
-| Slack, PagerDuty and generic webhook notification adapters with contract tests (live delivery only if credentials are provided) |
+| Acceptance criterion | Status |
+|---|---|
+| Proposal → approval (role + two-person rule) → execution → verification → rollback via inverse; idempotent execution; full audit | DONE in code and tests (`tests/api/test_remediation.py`); live verification against the demo stack pending |
+| One real executor (flag service) used by the demo; execution disabled per org by default | DONE |
+| Slack, PagerDuty and generic webhook notification adapters with contract tests (live delivery only if credentials are provided) | PLANNED |
 
 ## M7 — Containers, compose stack, reproducible demo · `PLANNED`
 Depends on: M2–M6, Council D.
