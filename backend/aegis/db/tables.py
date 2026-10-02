@@ -348,3 +348,28 @@ integrations = Table(
     Column("last_test_status", Text),
     Column("last_test_detail", Text),
 )
+
+llm_calls = Table(
+    "llm_calls",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=FetchedValue()),
+    Column("org_id", UUID(as_uuid=True)),
+    Column("investigation_id", UUID(as_uuid=True)),
+    Column("integration_id", UUID(as_uuid=True)),
+    Column("connector_id", Text),
+    Column("api", Text),
+    Column("model", Text),
+    Column("locality", Text),
+    Column("purpose", Text),
+    Column("attempt", Text),
+    _ts("started_at"),
+    Column("latency_ms", Integer),
+    Column("prompt_tokens", Integer),
+    Column("completion_tokens", Integer),
+    Column("status", Text),
+    Column("error_category", Text),
+    Column("prompt_sha256", Text),
+    Column("prompt_bytes", Integer),
+    Column("redaction", JSONB),
+    Column("policy", JSONB),
+)

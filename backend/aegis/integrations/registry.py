@@ -92,7 +92,8 @@ class Connector(BaseModel):
     allow_private: bool = False
     allow_loopback: bool = False
     insecure_http: bool = False
-    timeout_seconds: Annotated[float, Field(ge=1, le=120)] = 10.0
+    # CPU-bound local models can take minutes per call; the operator sets this per connector.
+    timeout_seconds: Annotated[float, Field(ge=1, le=900)] = 10.0
     max_response_bytes: Annotated[int, Field(ge=1024, le=64 * 1024 * 1024)] = 10 * 1024 * 1024
     options: dict[str, Any] = Field(default_factory=dict)
 

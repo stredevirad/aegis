@@ -50,6 +50,7 @@ from aegis.investigations.windows import previous_day
 from aegis.jobs import events, queue
 from aegis.jobs.events import EventKind
 from aegis.jobs.queue import ClaimedJob, LeaseLost, RetryableError, Windows
+from aegis.llm.adjudicate import Adjudicator
 from aegis.observability.context import investigation_id_var, job_id_var, org_id_var
 
 log = logging.getLogger("aegis.worker")
@@ -88,11 +89,13 @@ class Worker:
         worker_id: str | None = None,
         poll_seconds: float = 1.0,
         collector: LiveCollector | None = None,
+        adjudicator: Adjudicator | None = None,
     ) -> None:
         self.engine = engine
         self.settings = settings
         self.scenarios = scenarios
         self.collector = collector
+        self.adjudicator = adjudicator
         self.worker_id = (
             worker_id or settings.worker_id or f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
         )
@@ -375,15 +378,17 @@ class Worker:
             )
         analysis = await asyncio.to_thread(analyze, snapshot, request)
 
-        # 4. persist results and complete, all-or-nothing under the fence
+        # 4. persist the deterministic result (fenced) and stream it: operators see it now
+        v = analysis.verdict
         async with tenant_tx(self.engine, org) as c:
             inv = await queue.lock_investigation(c, org, inv_id)
             if inv is None:
                 raise PermanentError("investigation no longer exists")
             if inv["cancel_requested"]:
                 raise InvestigationCancelled()
-            await queue.finish(c, job, "succeeded")
-            await persist.store_analysis(c, org, inv_id, analysis)
+            if not await queue.heartbeat(c, job, self.settings.job_lease_seconds):
+                raise LeaseLost(str(job.job_id))
+            await persist.store_analysis(c, org, inv_id, analysis, status="running")
             leaders = [cand.service for cand in analysis.candidates if cand.rule is not None]
             await events.append(
                 c,
@@ -398,7 +403,6 @@ class Worker:
                     "evidence": len(analysis.evidence),
                 },
             )
-            v = analysis.verdict
             await events.append(
                 c,
                 org,
@@ -410,8 +414,57 @@ class Worker:
                     "classification": v.classification.value,
                     "support": v.support.value,
                     "root_causes": [rc.service for rc in v.root_causes],
+                    "deterministic": True,
                 },
             )
+
+        # 5. optional AI adjudication within the deterministic bounds (never required)
+        ai: dict[str, Any] = {"status": "disabled"}
+        if self.adjudicator is not None:
+
+            async def cancelled() -> bool:
+                async with tenant_tx(self.engine, org) as cc:
+                    row = await queue.lock_investigation(cc, org, inv_id)
+                    return bool(row and row["cancel_requested"])
+
+            try:
+                ai = await self.adjudicator.run(org, inv_id, analysis, self.worker_id, cancelled)
+            except (DBAPIError, OSError):
+                raise
+            except Exception:
+                log.exception("AI adjudication failed; keeping the deterministic verdict")
+                ai = {"status": "unavailable", "reason": "internal error in the AI layer"}
+
+        # 6. complete under the fence
+        async with tenant_tx(self.engine, org) as c:
+            inv = await queue.lock_investigation(c, org, inv_id)
+            if inv is None:
+                raise PermanentError("investigation no longer exists")
+            if inv["cancel_requested"]:
+                raise InvestigationCancelled()
+            await queue.finish(c, job, "succeeded")
+            await persist.complete(c, org, inv_id, ai, inv["verdict"])
+            if ai.get("status") != "disabled":
+                await events.append(
+                    c,
+                    org,
+                    inv_id,
+                    EventKind.AI_ADJUDICATION,
+                    _ai_message(ai),
+                    state="running",
+                    data={
+                        k: ai.get(k)
+                        for k in (
+                            "status",
+                            "provider",
+                            "model",
+                            "classification",
+                            "support",
+                            "lowered",
+                            "disagreement",
+                        )
+                    },
+                )
             await events.append(
                 c, org, inv_id, EventKind.COMPLETED, "Investigation completed", state="completed"
             )
@@ -422,7 +475,11 @@ class Worker:
                 Action.INVESTIGATION_COMPLETED,
                 target_type="investigation",
                 target_id=inv_id,
-                details={"classification": v.classification.value, "support": v.support.value},
+                details={
+                    "classification": v.classification.value,
+                    "support": v.support.value,
+                    "ai": ai.get("status"),
+                },
             )
         return "succeeded"
 
@@ -580,3 +637,13 @@ class Worker:
             log.exception("could not record job failure")
             return "unrecorded_failure"
         return "failed"
+
+
+def _ai_message(ai: dict[str, Any]) -> str:
+    status = ai.get("status")
+    if status == "accepted":
+        note = " (lowered the deterministic result)" if ai.get("lowered") else ""
+        return f"AI assessment accepted: {ai.get('classification')}/{ai.get('support')}{note}"
+    if status == "invalid":
+        return "AI assessment rejected by validation; the deterministic verdict stands"
+    return f"AI assessment {status}: {str(ai.get('reason', ''))[:200]}; the deterministic verdict stands"

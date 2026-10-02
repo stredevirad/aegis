@@ -8,6 +8,7 @@ finding DATA-01 / S-C1). ``store_analysis`` replaces the rows of *this* investig
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -74,7 +75,11 @@ async def _insert_many(conn: AsyncConnection, table: Any, rows: list[dict[str, A
 
 
 async def store_analysis(
-    conn: AsyncConnection, org_id: UUID, investigation_id: UUID, analysis: Analysis
+    conn: AsyncConnection,
+    org_id: UUID,
+    investigation_id: UUID,
+    analysis: Analysis,
+    status: str = "completed",
 ) -> None:
     for table in (evidence_relations, evidence, candidates, root_causes):
         await conn.execute(
@@ -147,7 +152,7 @@ async def store_analysis(
         update(investigations)
         .where(investigations.c.org_id == org_id, investigations.c.id == investigation_id)
         .values(
-            status="completed",
+            status=status,
             classification=v.classification.value,
             support=v.support.value,
             display_label=v.display_label,
@@ -159,6 +164,26 @@ async def store_analysis(
                 "analysis_schema_version": analysis.schema_version,
             },
             error=None,
+            finished_at=func.now() if status == "completed" else None,
+        )
+    )
+
+
+async def complete(
+    conn: AsyncConnection,
+    org_id: UUID,
+    investigation_id: UUID,
+    ai: dict[str, Any],
+    verdict: dict[str, Any] | None,
+) -> None:
+    """Mark completed and attach the AI assessment (or why there is none) to the verdict.
+    The caller holds the investigation row lock and passes the stored verdict."""
+    await conn.execute(
+        update(investigations)
+        .where(investigations.c.org_id == org_id, investigations.c.id == investigation_id)
+        .values(
+            status="completed",
             finished_at=func.now(),
+            verdict={**(verdict or {}), "ai": json.loads(json.dumps(ai, default=str))},
         )
     )

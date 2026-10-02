@@ -83,7 +83,32 @@ def investigation(row: Any) -> S.InvestigationOut:
         created_at=row["created_at"],
         started_at=row["started_at"],
         finished_at=row["finished_at"],
+        ai=_ai(verdict.get("ai")),
     )
+
+
+AI_STATUSES = frozenset(
+    {"disabled", "accepted", "invalid", "unavailable", "refused", "budget_exhausted", "cancelled"}
+)
+
+
+def _ai(raw: Any) -> S.AiAssessmentOut | None:
+    if not isinstance(raw, dict) or raw.get("status") not in AI_STATUSES:
+        return None
+    keep = {
+        k: raw.get(k) for k in S.AiAssessmentOut.model_fields if k in raw and raw.get(k) is not None
+    }
+    keep["claims"] = [
+        S.AiClaimOut(
+            type=c["type"],
+            text=str(c["text"]),
+            evidence_ids=[str(e) for e in c.get("evidence_ids", [])],
+        )
+        for c in raw.get("claims") or []
+        if isinstance(c, dict) and c.get("type") in ("observation", "inference")
+    ]
+    keep["reason"] = str(raw["reason"])[:300] if raw.get("reason") else None
+    return S.AiAssessmentOut(**keep)
 
 
 def event(row: Any) -> S.EventOut:

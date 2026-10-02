@@ -22,7 +22,15 @@ from aegis.auth.login import user_orgs
 from aegis.auth.principal import Principal
 from aegis.auth.rbac import Permission
 from aegis.db.engine import tenant_tx
-from aegis.db.tables import audit_events, invitations, memberships, organizations, sessions, users
+from aegis.db.tables import (
+    audit_events,
+    integrations,
+    invitations,
+    memberships,
+    organizations,
+    sessions,
+    users,
+)
 from aegis.org_settings import OrgSettings, read_settings
 
 router = APIRouter(tags=["administration"])
@@ -147,6 +155,7 @@ async def update_settings(
             raise ApiError(
                 400, "source_unavailable", "That scenario is not available in this deployment"
             )
+        await _check_ai_settings(c, state, principal.org_id, new)
         stored = new.model_dump(mode="json")
         await c.execute(
             update(organizations)
@@ -578,3 +587,37 @@ async def verify_audit(
             "tamper-evident against the database owner, who can recompute the chain."
         ),
     )
+
+
+async def _check_ai_settings(c: Any, state: AppState, org_id: UUID, new: OrgSettings) -> None:
+    """The AI provider must be one of this organization's LLM integrations; cloud providers
+    need the explicit ai_allow_cloud opt-in (ADR-015); AI cannot be enabled without one."""
+    if new.ai_integration_id is not None:
+        row = (
+            await c.execute(
+                select(integrations.c.kind, integrations.c.connector_id).where(
+                    integrations.c.org_id == org_id, integrations.c.id == new.ai_integration_id
+                )
+            )
+        ).first()
+        if row is None or row.kind != "llm":
+            raise ApiError(
+                400,
+                "invalid_ai_provider",
+                "ai_integration_id must be one of this organization's LLM integrations",
+            )
+        connector = state.registry.get(row.connector_id)
+        if (
+            connector is not None
+            and connector.options.get("locality") == "cloud"
+            and not new.ai_allow_cloud
+        ):
+            raise ApiError(
+                400,
+                "cloud_not_allowed",
+                "This provider is a cloud service; set ai_allow_cloud to opt in",
+            )
+    if new.ai_enabled and new.ai_integration_id is None:
+        raise ApiError(
+            400, "invalid_ai_provider", "Select an LLM integration before enabling AI adjudication"
+        )

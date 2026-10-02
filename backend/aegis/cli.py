@@ -74,10 +74,18 @@ async def _run_worker(settings: Settings) -> None:
 
     engine = make_engine(settings)
     egress = EgressClient(settings)
-    collector = LiveCollector(
-        engine, connector_registry.load(settings), Keyring.from_settings(settings), egress
+    from aegis.llm.adjudicate import Adjudicator
+
+    registry, keyring = connector_registry.load(settings), Keyring.from_settings(settings)
+    collector = LiveCollector(engine, registry, keyring, egress)
+    adjudicator = Adjudicator(engine, settings, registry, keyring, egress)
+    worker = Worker(
+        engine,
+        settings,
+        ScenarioRegistry(settings.scenario_dir),
+        collector=collector,
+        adjudicator=adjudicator,
     )
-    worker = Worker(engine, settings, ScenarioRegistry(settings.scenario_dir), collector=collector)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):

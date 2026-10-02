@@ -147,6 +147,56 @@ class NextCheckOut(_Out):
     services: list[str]
 
 
+class AiClaimOut(_Out):
+    type: Literal["observation", "inference"]
+    text: str
+    evidence_ids: list[str]
+
+
+class AiAssessmentOut(_Out):
+    """The model's assessment, validated against the deterministic ceiling. Never stronger
+    than the deterministic classification/support; ``lowered`` means it is weaker."""
+
+    status: Literal[
+        "disabled", "accepted", "invalid", "unavailable", "refused", "budget_exhausted", "cancelled"
+    ]
+    reason: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    locality: str | None = None
+    classification: str | None = None
+    support: str | None = None
+    selected_candidate: str | None = None
+    mechanism: str | None = None
+    claims: list[AiClaimOut] = []
+    uncertainty: str | None = None
+    missing_information: list[str] = []
+    summary: str | None = None
+    next_check: str | None = None
+    lowered: bool = False
+    disagreement: bool = False
+    errors: list[str] = []
+
+
+class LlmCallOut(_Out):
+    id: UUID
+    connector_id: str
+    api: str
+    model: str
+    locality: str
+    attempt: str
+    started_at: datetime
+    latency_ms: int | None
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    status: str
+    error_category: str | None
+    prompt_sha256: str | None
+    prompt_bytes: int | None
+    redaction: dict[str, Any]
+    policy: dict[str, Any]
+
+
 class InvestigationOut(_Out):
     id: UUID
     incident_id: UUID
@@ -174,6 +224,7 @@ class InvestigationOut(_Out):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    ai: AiAssessmentOut | None = None
 
 
 class InvestigationStart(_In):

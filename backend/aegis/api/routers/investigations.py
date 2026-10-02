@@ -38,6 +38,7 @@ from aegis.db.tables import (
     evidence,
     evidence_relations,
     investigations,
+    llm_calls,
     root_causes,
     snapshots,
 )
@@ -434,3 +435,30 @@ async def snapshot_summary(
         collection=[S.CollectionOut(**o) for o in (row["collection"] or [])],
         redaction=row["redaction"] or {},
     )
+
+
+@router.get("/{investigation_id}/llm-calls", response_model=list[S.LlmCallOut])
+async def list_llm_calls(
+    investigation_id: UUID,
+    principal: Annotated[Principal, Depends(require(Permission.INVESTIGATION_READ))],
+    state: Annotated[AppState, Depends(app_state)],
+) -> list[S.LlmCallOut]:
+    """Which model provider saw this investigation's (redacted) data, when, under which policy.
+    Prompts are not stored; only their hash and size."""
+    await _assert_exists(state, principal, investigation_id)
+    async with tenant_tx(state.engine, principal.org_id, principal.user_id) as c:
+        rows = (
+            (
+                await c.execute(
+                    select(llm_calls)
+                    .where(
+                        llm_calls.c.org_id == principal.org_id,
+                        llm_calls.c.investigation_id == investigation_id,
+                    )
+                    .order_by(llm_calls.c.started_at)
+                )
+            )
+            .mappings()
+            .all()
+        )
+    return [S.LlmCallOut(**{f: r[f] for f in S.LlmCallOut.model_fields}) for r in rows]

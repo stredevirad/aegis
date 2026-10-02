@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     worker_concurrency: int = Field(default=2, ge=1, le=64)
     job_lease_seconds: int = Field(default=120, ge=5)
     worker_shutdown_grace_seconds: float = Field(default=30.0, ge=0, le=600)
+    # Global bound on concurrent model calls across all workers (one CPU-bound local model: 1).
+    llm_global_concurrency: int = Field(default=1, ge=1, le=64)
+    llm_slot_wait_seconds: float = Field(default=300.0, ge=0, le=3600)
+    llm_slot_lease_seconds: int = Field(default=600, ge=30, le=7200)
     # Touched by the worker's maintenance loop every 10 s (exec liveness probe).
     worker_health_file: Path | None = None
     job_heartbeat_seconds: int = Field(default=15, ge=1)
