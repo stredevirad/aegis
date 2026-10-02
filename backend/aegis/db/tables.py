@@ -328,3 +328,23 @@ audit_events = Table(
     Column("prev_hash", LargeBinary),
     Column("hash", LargeBinary),
 )
+
+integrations = Table(
+    "integrations",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=FetchedValue()),
+    Column("org_id", UUID(as_uuid=True)),
+    Column("connector_id", Text),
+    Column("kind", Text),
+    Column("name", Text),
+    Column("enabled", Boolean),
+    Column("credential_type", Text),
+    Column("credential_kid", Text),
+    Column("credential_blob", LargeBinary),
+    Column("created_by", UUID(as_uuid=True)),
+    _ts("created_at"),
+    _ts("updated_at"),
+    _ts("last_test_at"),
+    Column("last_test_status", Text),
+    Column("last_test_detail", Text),
+)

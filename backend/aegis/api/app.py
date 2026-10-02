@@ -19,12 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from aegis import __version__
 from aegis.api import errors
 from aegis.api.middleware import RequestContextMiddleware
-from aegis.api.routers import admin, auth, incidents, ingest, investigations
+from aegis.api.routers import admin, auth, incidents, ingest, integrations, investigations
 from aegis.api.state import AppState
 from aegis.auth.oidc import OidcClient
 from aegis.config import Settings, validate_for_profile
 from aegis.db.engine import make_engine
+from aegis.integrations import registry as connector_registry
+from aegis.integrations.egress import EgressClient
+from aegis.integrations.registry import TELEMETRY_KINDS, RegistryError
 from aegis.investigations.sources import ScenarioRegistry
+from aegis.security.crypto import Keyring, KeyringError
 
 
 def migration_head() -> str | None:
@@ -45,6 +49,7 @@ def create_app(
     engine: AsyncEngine | None = None,
     scenarios: ScenarioRegistry | None = None,
     oidc_transport: httpx.AsyncBaseTransport | None = None,
+    egress: EgressClient | None = None,
 ) -> FastAPI:
     problems = validate_for_profile(settings)
     if problems:
@@ -55,8 +60,19 @@ def create_app(
     expected_migration = migration_head()
     owns_engine = engine is None
     db = engine or make_engine(settings)
+    try:
+        registry = connector_registry.load(settings)
+        keyring = Keyring.from_settings(settings)
+    except (RegistryError, KeyringError) as exc:
+        raise UnsafeConfiguration(str(exc)) from None
     state = AppState(
-        settings=settings, engine=db, scenarios=scenarios or ScenarioRegistry(settings.scenario_dir)
+        settings=settings,
+        engine=db,
+        scenarios=scenarios or ScenarioRegistry(settings.scenario_dir),
+        registry=registry,
+        keyring=keyring,
+        egress=egress or EgressClient(settings),
+        live_collection_available=any(c.kind in TELEMETRY_KINDS for c in registry.for_all()),
     )
     if settings.auth_mode == "oidc":
         if not (settings.oidc_issuer and settings.oidc_client_id and settings.oidc_client_secret):
@@ -68,6 +84,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
+        await state.egress.aclose()
         if owns_engine:
             await db.dispose()
 
@@ -84,7 +101,13 @@ def create_app(
     app.add_middleware(RequestContextMiddleware, max_body_bytes=settings.max_body_bytes)
 
     v1 = APIRouter(prefix="/api/v1")
-    for r in (incidents.router, investigations.router, ingest.router, admin.router):
+    for r in (
+        incidents.router,
+        investigations.router,
+        ingest.router,
+        admin.router,
+        integrations.router,
+    ):
         v1.include_router(r)
     app.include_router(v1)
     app.include_router(auth.router)

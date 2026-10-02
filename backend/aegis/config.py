@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     bootstrap_org_slug: str = "default"
     bootstrap_admin_emails: list[str] = Field(default_factory=list)
 
+    # Operator-owned connector registry (ADR-016); unset = no outbound integrations.
+    connectors_file: Path | None = None
+    # Extra host:port pairs no connector may target (Aegis's own services, e.g. "ollama:11434").
+    egress_deny: list[str] = Field(default_factory=list)
+
     log_level: str = Field(default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR)$")
     log_json: bool = True
     otel_exporter_endpoint: str | None = None
