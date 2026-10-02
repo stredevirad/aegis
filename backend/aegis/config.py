@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     oidc_client_id: str | None = None
     oidc_client_secret: SecretStr | None = None
     oidc_scopes: list[str] = Field(default_factory=lambda: ["openid", "email", "profile"])
+    # Base URL the *server* uses to reach the IdP when it differs from the public issuer
+    # (e.g. a container-network hostname); the ID token's iss is still checked against
+    # oidc_issuer.
+    oidc_internal_issuer: str | None = None
     cookie_secure: bool = False
     session_idle_minutes: int = Field(default=480, ge=5)
     session_absolute_minutes: int = Field(default=1440, ge=10)
@@ -104,6 +108,10 @@ def validate_for_profile(s: Settings) -> list[str]:
         problems.append("oidc_issuer, oidc_client_id and oidc_client_secret are required")
     elif not s.oidc_issuer.startswith("https://"):
         problems.append("oidc_issuer must use https")
+    if s.oidc_internal_issuer and not s.oidc_internal_issuer.startswith("https://"):
+        problems.append(
+            "oidc_internal_issuer must use https (the back channel carries the client secret)"
+        )
     if not s.cookie_secure:
         problems.append("cookie_secure must be true")
     if not s.public_base_url.startswith("https://"):

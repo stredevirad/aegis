@@ -37,7 +37,7 @@ Depends on: Council B (done).
 | Structured evaluator alongside the research evaluator | DONE (`aegis.benchmark.evaluate`) |
 | Benchmark runner + CI gate; held-out set evaluated and reported, never tuned on | DONE — synthetic 15/15 (regression gate, not an accuracy estimate); held-out run 1 (clean): 0 confident-wrong; run 2 reported as post-hoc |
 
-## M2 — Persistence, jobs, API, auth, tenancy, audit, ingestion (the slice backbone) · `IN PROGRESS`
+## M2 — Persistence, jobs, API, auth, tenancy, audit, ingestion (the slice backbone) · `DONE`
 Depends on: M1, Council C.
 
 | Acceptance criterion | Status |
@@ -48,7 +48,7 @@ Depends on: M1, Council C.
 | Worker runs snapshot collection (replay source first) → core → persists graph and verdict → events | DONE for the scenario (replay) source; live collection is M4 |
 | REST `/api/v1` (incidents, alerts, investigations, evidence, events, change-events, audit, me, organizations, users/memberships, api-keys) with pagination, filtering, sorting, stable error schema, request IDs, OpenAPI | DONE (`docs/api.md`) |
 | SSE investigation stream (event-table polling) + REST polling fallback | DONE — verified over a real TCP socket |
-| OIDC BFF login with sessions, CSRF defence, API keys, RBAC matrix enforced server-side, tested per route | PARTIAL — sessions, CSRF, API keys, RBAC matrix done; OIDC code flow with Dex pending |
+| OIDC BFF login with sessions, CSRF defence, API keys, RBAC matrix enforced server-side, tested per route | DONE — code + PKCE flow (`tests/api/test_oidc.py`), live against Dex (`test_oidc_dex_live.py`) |
 | Alertmanager + generic webhook ingestion with ingest-scoped keys, fingerprint dedup, grouping window, auto-investigation once per incident with cooldown | DONE (auto-investigation once per incident; deferral when the queue is full) |
 | Hash-chained append-only audit (no UPDATE/DELETE grants), verification endpoint | DONE (`/api/v1/audit/verify`, `aegis audit verify`) |
 | Configuration system with environment profiles and startup validation that rejects unsafe production settings | DONE (profile defaults to production; API and worker refuse unsafe settings) |

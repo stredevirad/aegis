@@ -658,3 +658,19 @@ async def test_redelivery_dedups_with_sender_clock_ahead_or_no_start_time(
     assert (await admin.get(f"/api/v1/incidents/{inc}")).json()["status"] == "resolved"
     again = (await m.post("/api/v1/alerts", json=no_start, headers=h)).json()  # fires again later
     assert again["new_occurrences"] == 1 and again["incidents_created"] != [inc]
+
+
+async def test_idle_and_absolute_session_expiry(
+    tenant_factory, member_factory, client_factory, su_conn
+):
+    t = await tenant_factory()
+    email = await member_factory(t, "viewer")
+    for column in ("idle_expires_at", "expires_at"):
+        c = await client_factory(email, t.slug)
+        assert (await c.get("/api/v1/incidents")).status_code == 200
+        await su_conn.execute(
+            f"UPDATE aegis.sessions SET {column} = now() - interval '1 second' "  # noqa: S608 - fixed column names
+            "WHERE user_id = (SELECT id FROM aegis.users WHERE subject = $1) AND revoked_at IS NULL",
+            email,
+        )
+        assert (await c.get("/api/v1/incidents")).status_code == 401, column

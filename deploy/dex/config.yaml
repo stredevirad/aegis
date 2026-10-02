@@ -1,0 +1,39 @@
+# Development identity provider (Dex). NOT for production: static users, in-memory storage.
+# Users (password "password"): admin@example.com, investigator@example.com,
+# reviewer@example.com, viewer@example.com. Aegis grants nothing on login by itself:
+# organizations and invitations are created with `aegis admin create-org/invite`.
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+oauth2:
+  skipApprovalScreen: true
+  responseTypes: ["code"]
+enablePasswordDB: true
+staticClients:
+  - id: aegis
+    name: Aegis (development)
+    secret: aegis-dev-client-secret
+    redirectURIs:
+      - http://127.0.0.1:8000/auth/callback
+      - http://localhost:8000/auth/callback
+      - http://localhost:8080/auth/callback
+      - http://localhost:5173/auth/callback
+staticPasswords:
+  - email: admin@example.com
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: admin
+    userID: 08a8684b-db88-4b73-90a9-3cd1661f5466
+  - email: investigator@example.com
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: investigator
+    userID: 1d2c7c4e-4c38-4ef7-9b8a-6a5f1b2c3d01
+  - email: reviewer@example.com
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: reviewer
+    userID: 2e3d8d5f-5d49-4f08-8c9b-7b6a2c3d4e02
+  - email: viewer@example.com
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: viewer
+    userID: 3f4e9e60-6e5a-4019-9dac-8c7b3d4e5f03

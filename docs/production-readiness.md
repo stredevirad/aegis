@@ -9,7 +9,7 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 | Suite | Command (from) | Result | Date |
 |---|---|---|---|
 | Backend unit + core + benchmark tests | `uv run --frozen pytest -m "not db and not live"` (`backend/`) | 114 passed | 2026-10-02 |
-| Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m db` (`backend/`) | 80 passed | 2026-10-02 |
+| Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml --profile auth up -d --wait` then `uv run --frozen pytest -m db` (`backend/`) | 99 passed (incl. 1 live test against Dex) | 2026-10-02 |
 | Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 | 2026-10-02 |
 | Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-10-02 |
 | Format / lint / types | `uv run --frozen ruff format --check .`, `ruff check .`, `mypy` (`backend/`) | clean | 2026-10-02 |
@@ -17,6 +17,16 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 ## Verification log
 
 Newest first. Each entry: what was run, the observed result, and what it does not show.
+
+### 2026-10-02 — M2 complete: OIDC authorization code + PKCE
+
+`uv run --frozen pytest` (`backend/`, PostgreSQL + Dex v2.44.0 from `deploy/compose.dev.yaml --profile auth`) → **213 passed**.
+
+* `tests/api/test_oidc.py` (17, fake IdP over an in-process transport): full code flow with PKCE (the IdP verifies the S256 challenge), session issued, single-use login state; rejection of wrong audience, wrong issuer, expired token, wrong/missing nonce, missing `sub`, bad signature, unknown `kid`, `alg: none`, HMAC-with-public-key confusion, multi-audience without matching `azp`, state mismatch, missing or tampered login-state cookie, PKCE verifier mismatch, unverified email (no invitation accepted), IdP error; `return_to` open-redirect attempts (`//host`, absolute URLs, `/\host`, `javascript:`) all land on `/`; dev login is not routable in OIDC mode.
+* `tests/api/test_oidc_dex_live.py` (marker `live`): the test drives Dex's real login form; Aegis exchanges the code, validates the ID token against Dex's JWKS, accepts the reviewer invitation and issues a session with role `reviewer` in the invited organization; a wrong password never yields a code.
+* Session idle and absolute expiry each end access (`test_idle_and_absolute_session_expiry`).
+
+Not shown: refresh tokens are not used (sessions are server-side; re-login after absolute expiry); IdP-side account removal is reflected only through Aegis membership removal or `aegis admin set-user-disabled` (documented in ADR-011 amendment).
 
 ### 2026-10-02 — M2 slice: queue, worker, API, ingestion, auth (dev login + API keys), CLI
 
@@ -60,5 +70,5 @@ What this does **not** show: OIDC login (next step; dev login and API keys only 
 |---|---|---|
 | M0 audit, decisions, research preservation | DONE | roadmap; research suite 159 passed |
 | M1 pure RCA core + benchmark gate | DONE (LLM-free) | core tests; benchmark gate |
-| M2 persistence, jobs, API, auth, tenancy, audit, ingestion | IN PROGRESS | schema 0001–0004, queue, worker, API, ingestion, API keys, dev sessions, CLI verified; OIDC pending |
+| M2 persistence, jobs, API, auth, tenancy, audit, ingestion | DONE | schema 0001–0004, queue, worker, API, ingestion, OIDC (fake IdP + live Dex), API keys, RBAC, CLI — see log |
 | M3–M11 | PLANNED | — |

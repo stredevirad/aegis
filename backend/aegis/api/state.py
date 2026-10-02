@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from aegis.api.ratelimit import RateLimiter
+from aegis.auth.oidc import OidcClient
 from aegis.config import Settings
 from aegis.investigations.sources import ScenarioRegistry
 
@@ -23,3 +24,4 @@ class AppState:
     # Live collection needs the integration registry (roadmap M4); until then only replay
     # (scenario) sources can be investigated.
     live_collection_available: bool = False
+    oidc: OidcClient | None = None

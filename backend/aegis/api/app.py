@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -20,6 +21,7 @@ from aegis.api import errors
 from aegis.api.middleware import RequestContextMiddleware
 from aegis.api.routers import admin, auth, incidents, ingest, investigations
 from aegis.api.state import AppState
+from aegis.auth.oidc import OidcClient
 from aegis.config import Settings, validate_for_profile
 from aegis.db.engine import make_engine
 from aegis.investigations.sources import ScenarioRegistry
@@ -42,6 +44,7 @@ def create_app(
     settings: Settings,
     engine: AsyncEngine | None = None,
     scenarios: ScenarioRegistry | None = None,
+    oidc_transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
     problems = validate_for_profile(settings)
     if problems:
@@ -55,6 +58,12 @@ def create_app(
     state = AppState(
         settings=settings, engine=db, scenarios=scenarios or ScenarioRegistry(settings.scenario_dir)
     )
+    if settings.auth_mode == "oidc":
+        if not (settings.oidc_issuer and settings.oidc_client_id and settings.oidc_client_secret):
+            raise UnsafeConfiguration(
+                "auth_mode=oidc requires oidc_issuer, oidc_client_id and oidc_client_secret"
+            )
+        state.oidc = OidcClient(settings, transport=oidc_transport)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -81,6 +90,8 @@ def create_app(
     app.include_router(auth.router)
     if settings.dev_like and settings.auth_mode == "dev":
         app.include_router(auth.dev_router)
+    if settings.auth_mode == "oidc":
+        app.include_router(auth.oidc_router)
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, str]:

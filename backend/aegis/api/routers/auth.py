@@ -18,7 +18,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from aegis import audit
@@ -26,8 +27,17 @@ from aegis.api.deps import app_state, check_csrf, rate_limit, require_authentica
 from aegis.api.errors import ApiError
 from aegis.api.state import AppState
 from aegis.audit import Action
+from aegis.audit.log import security_event
 from aegis.auth import sessions
 from aegis.auth.login import Identity, LoginRefused, complete_login, user_orgs
+from aegis.auth.oidc import (
+    STATE_COOKIE,
+    STATE_TTL_SECONDS,
+    OidcClient,
+    OidcError,
+    open_state,
+    seal_state,
+)
 from aegis.auth.principal import Principal
 from aegis.config import Settings
 from aegis.db.engine import tenant_tx
@@ -183,3 +193,80 @@ async def dev_login(
         raise ApiError(403, "login_refused", str(exc)) from None
     set_session_cookie(response, state.settings, result.token, result.expires_at)
     return SessionOut(authenticated=True, org_id=str(result.org_id), expires_at=result.expires_at)
+
+
+# --- OIDC (registered when auth_mode == "oidc") ------------------------------------------------
+
+oidc_router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _oidc(state: AppState) -> OidcClient:
+    if state.oidc is None:
+        raise ApiError(404, "not_found", "Not found")
+    return state.oidc
+
+
+@oidc_router.get("/login")
+async def oidc_login(
+    request: Request,
+    state: Annotated[AppState, Depends(app_state)],
+    return_to: Annotated[str | None, Query(max_length=500)] = None,
+    org: Annotated[str | None, Query(max_length=63, pattern=r"^[a-z0-9][a-z0-9-]{1,62}$")] = None,
+) -> RedirectResponse:
+    rate_limit(state, f"login:{request.client.host if request.client else '-'}", 30, 10)
+    try:
+        url, login_state = await _oidc(state).begin(return_to, org)
+    except OidcError as exc:
+        raise ApiError(503, "idp_unavailable", str(exc)) from None
+    response = RedirectResponse(url, status_code=302)
+    response.set_cookie(
+        STATE_COOKIE,
+        seal_state(state.settings, login_state),
+        max_age=STATE_TTL_SECONDS,
+        path="/auth",
+        httponly=True,
+        secure=state.settings.cookie_secure,
+        samesite="lax",
+    )
+    return response
+
+
+@oidc_router.get("/callback")
+async def oidc_callback(
+    request: Request,
+    state: Annotated[AppState, Depends(app_state)],
+    code: Annotated[str | None, Query(max_length=2048)] = None,
+    state_param: Annotated[str | None, Query(alias="state", max_length=200)] = None,
+    error: Annotated[str | None, Query(max_length=100)] = None,
+) -> RedirectResponse:
+    """Completes the login. Failures redirect to the SPA's login page with a short code;
+    nothing from the IdP's response is reflected into the page."""
+
+    def fail(reason: str) -> RedirectResponse:
+        security_event("oidc_login_failed", reason=reason[:200])
+        r = RedirectResponse(
+            "/login?error=" + ("idp_error" if error else "login_failed"), status_code=302
+        )
+        r.delete_cookie(STATE_COOKIE, path="/auth")
+        return r
+
+    client = _oidc(state)
+    if error:
+        return fail(f"idp returned error {error}")
+    try:
+        login_state = open_state(state.settings, request.cookies.get(STATE_COOKIE))
+        ident = await client.finish(login_state, code or "", state_param or "")
+        result = await complete_login(
+            state.engine,
+            state.settings,
+            ident,
+            org_slug=login_state.org,
+            user_agent=request.headers.get("user-agent"),
+            method="oidc",
+        )
+    except (OidcError, LoginRefused) as exc:
+        return fail(str(exc))
+    response = RedirectResponse(login_state.return_to, status_code=302)
+    response.delete_cookie(STATE_COOKIE, path="/auth")
+    set_session_cookie(response, state.settings, result.token, result.expires_at)
+    return response

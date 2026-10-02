@@ -2,6 +2,7 @@
 #
 #   docker compose -f deploy/compose.dev.yaml up -d
 #   cd backend && uv run --frozen pytest -m db
+#   docker compose -f deploy/compose.dev.yaml --profile auth up -d   # + Dex (OIDC, port 5556)
 #
 # The superuser is used only by the bootstrap step and the test fixtures; the application
 # always connects as the restricted aegis_app role (ADR-012). Development-only credentials.
@@ -23,6 +24,16 @@ services:
       timeout: 3s
       retries: 30
     mem_limit: 512m
+
+  dex:
+    image: ghcr.io/dexidp/dex:v2.44.0
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    volumes:
+      - ./dex/config.yaml:/etc/dex/config.yaml:ro
+    ports:
+      - "127.0.0.1:5556:5556"
+    mem_limit: 128m
+    profiles: ["auth"]
 
 volumes:
   pgdata:
