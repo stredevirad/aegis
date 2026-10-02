@@ -62,7 +62,7 @@ def fake_resolver(table: dict[str, list[str]]):
         ("::ffff:169.254.169.254", "deny"),  # IPv4-mapped IPv6
         ("64:ff9b::a9fe:a9fe", "deny"),  # NAT64 of 169.254.169.254
         ("2002:a9fe:a9fe::1", "deny"),  # 6to4 of 169.254.169.254
-        ("0.0.0.0", "deny"),
+        ("0.0.0.0", "deny"),  # noqa: S104 - classification input, not a bind
         ("::", "deny"),
         ("224.0.0.1", "deny"),
         ("255.255.255.255", "deny"),
