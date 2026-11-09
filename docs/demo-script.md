@@ -45,7 +45,7 @@ To also show the live path, start with `scripts/demo-up.sh --live` at least 3 mi
 - The job queue on `SKIP LOCKED` with leases and reaping (`backend/aegis/jobs/queue.py`).
 - SSRF-safe egress: DNS pinning, deny ranges, no redirects (`backend/aegis/integrations/egress.py`).
 - The LLM validator: it can only lower confidence (`backend/aegis/llm/validate.py`, ADR-009).
-- CI: 360 backend tests (134 on real PostgreSQL), 3 browser E2E tests against this stack, and gitleaks.
+- CI: 366 backend tests (137 on real PostgreSQL), 3 browser E2E tests against this stack, and gitleaks.
 
 ## Afterwards
 
