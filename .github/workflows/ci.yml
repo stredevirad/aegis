@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    # Progress/ledger-only checkpoints don't need a full run (private-repo Actions minutes).
+    paths-ignore: ["**/*.md", "docs/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, strict types, tests on PostgreSQL, benchmark gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_PASSWORD: devsuperuser   # CI-only throwaway database
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      # An unreachable database fails the run instead of silently skipping the DB tests.
+      AEGIS_REQUIRE_DB: "1"
+      AEGIS_TEST_SUPERUSER_URL: postgresql://postgres:devsuperuser@127.0.0.1:55432/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.15"
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Gate (ruff format, ruff, mypy --strict, pytest -m "not live", benchmark gate)
+        run: bash backend/scripts/check.sh -m "not live" -rs
+      - name: Benchmark report
+        working-directory: backend
+        run: uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --out ../eval/results/benchmark-ci.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-ci
+          path: eval/results/benchmark-ci.json
+
+  research:
+    name: Research layer (frozen)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.15"
+          python-version: "3.13"
+      - name: Research suite
+        run: >-
+          uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0"
+          --with pytest --with-editable . python -m pytest tests -m "not integration" -q
+
+  frontend:
+    name: Frontend (types, lint, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"   # matches frontend/Dockerfile (node:24-alpine)
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  images:
+    name: Container images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Backend image
+        run: docker build --build-context scenarios=eval/scenarios -t aegis-backend:ci backend
+      - name: Frontend image
+        run: docker build -t aegis-web:ci frontend
+      - name: Compose files
+        run: |
+          docker compose -f deploy/compose.yaml config -q
+          docker compose -f deploy/compose.yaml --profile demo config -q
+
+  secrets:
+    name: Secret scan (full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: >-
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1
+          git /repo --redact --no-banner --gitleaks-ignore-path /repo/.gitleaksignore
+
+  e2e:
+    name: End-to-end (one-command stack + Playwright)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: [images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - name: Start the stack
+        run: docker compose -f deploy/compose.yaml up -d --build --wait
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Playwright
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Playwright against http://127.0.0.1:8080
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8080
+        run: npx playwright test
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f deploy/compose.yaml logs --no-color --tail 200
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f deploy/compose.yaml down -v
