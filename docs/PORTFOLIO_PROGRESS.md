@@ -98,6 +98,7 @@ The earlier tutor-mode plan (owner writes the fixes) was cancelled by the owner 
 
 ## Open follow-ups (not in any phase; owner decides)
 - None. The two remediation findings from the 2026-11-09 automated security review of 8b5fbad (lost update on the final execute/rollback write; maintenance-loop fault isolation) were fixed in Phase 6 (6.1, 6.2).
+- Minor, pre-existing (not changed in Phase 6): if the stuck-row sweeper has already leased an `executing` row (lease = now + 300 s) and `execute()`'s final compare-and-set then wins, the row becomes `verifying` with the sweeper's lease still set. `claim_due_verification` skips leased rows, so verification can start up to 300 s late. No data is lost; the old unconditional write behaved the same way. Possible fix: clear `verify_lease_owner`/`verify_lease_until` in the final write.
 
 ## Facts that differ from the 2026-11-08 snapshot
 - An extra local branch, `feature/mcp-interoperability`, points at dc7c032 (= `v1.1-research-freeze`), an ancestor of `main`. It stays local and unpushed.
