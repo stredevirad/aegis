@@ -5,6 +5,26 @@ Status is updated in the same commit that changes it. "Verified" means a command
 
 Build order follows Council A: core-first vertical slice → wrap the slice with persistence, jobs, API and UI → LLM → breadth. Councils B (RCA) and C (security) run before the core contract and the first migration are written; Council D before deployment work; Council E on the release candidate.
 
+
+## Portfolio release scope (2026-11-08)
+
+On 2026-11-08 the remaining roadmap was re-scoped to a **portfolio release** ([Council P1](councils/council-P1-portfolio-scope.md)). The milestone sections below keep their original acceptance criteria. This table is the current status, matching the ledger ([`production-readiness.md`](production-readiness.md)) and [`PORTFOLIO_PROGRESS.md`](PORTFOLIO_PROGRESS.md).
+
+| Milestone | Status | Reason / evidence |
+|---|---|---|
+| M0 Audit, decisions, research preservation | DONE | Licence chosen (MIT) 2026-11-09 |
+| M1 Pure RCA core + benchmark gate | DONE | Benchmark 15/15 in CI on every push |
+| M2 Persistence, jobs, API, auth, tenancy, audit, ingestion | DONE | 134 PostgreSQL tests in CI (`AEGIS_REQUIRE_DB=1`, none skipped) |
+| M3 LLM adjudication | PARTIAL | Adapters, validator and fallback done; no live LLM output has been accepted (1B model rejected); hosted-model runs DEFERRED (owner-held keys; stretch S1); cost accounting DEFERRED |
+| M4 Live integrations | PARTIAL | Prometheus, Loki/OpenSearch, Jaeger and the change feed work live; the one-command live demo produced a PLAUSIBLE catalog verdict (2026-11-09). Tempo and Kubernetes collectors DEFERRED (not needed for the demo) |
+| M5 Web application | PARTIAL (portfolio scope met) | Operator UI against the real backend; 78 unit tests plus 3 Playwright E2E tests in CI. Remediation UI DEFERRED (stretch S3) |
+| M6 Remediation and notifications | PARTIAL | Two-person remediation lifecycle with verification and rollback (backend/API, tested). Two reconciler robustness gaps open. Slack/PagerDuty/webhook notifications DEFERRED (not needed to show RCA) |
+| M7 Containers, compose stack, reproducible demo | DONE | Backend image, one-command stack (`scripts/demo-up`), seeded demo, live profile; E2E in CI against the stack |
+| M8 Self-observability, retention, MCP, topology | DEFERRED | Retention sweeps, topology graph and production MCP client hardening are cut; a read-only MCP server is stretch S4 |
+| M9 Kubernetes packaging and CI/CD | PARTIAL | CI/CD part done (GitHub Actions, gitleaks, Dependabot). Helm/Kubernetes, SBOM and image scanning DEFERRED (compose is enough for a portfolio demo) |
+| M10 Scale, chaos, benchmark breadth | DEFERRED | Load and chaos campaigns and 25 scenario types are cut; public-benchmark evaluation (RCAEval) is stretch S2 |
+| M11 Release candidate | DEFERRED | Replaced by the portfolio release `v1.0.0`; Council E superseded by councils P1/P2 |
+
 ---
 
 ## M0 — Audit, decisions, research preservation · `DONE`

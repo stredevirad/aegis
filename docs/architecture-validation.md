@@ -1,3 +1,5 @@
+> **Research-era document (2026-08)**, kept as a historical record of the research prototype (`src/`). The current product is described in [README.md](../README.md).
+
 # Architecture Validation Checklist
 
 This document details the critical architectural constraints for the Aegis project. Automated static checks (e.g., using `importlinter` or custom pytest fixtures) should be implemented to enforce these rules.

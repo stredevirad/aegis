@@ -1,3 +1,5 @@
+> **Research-era document (2026-08)**, kept as a historical record of the research prototype (`src/`). The current product is described in [README.md](../README.md).
+
 # Troubleshooting Guide
 
 ## Docker Issues

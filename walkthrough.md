@@ -1,3 +1,5 @@
+> **Research-era document (2026-08)**, kept as a historical record of the research prototype (`src/`). The current product is described in [README.md](README.md).
+
 # Aegis — End-to-End Revalidation & Project Closure Walkthrough
 
 This document records the comprehensive verification, experimental results, and finalized architecture of **Aegis (Phases 1, 2, and 3: Domain Core, Real Telemetry Integration, Fault Injection, Evaluation Rigor, and Reproducibility)**.

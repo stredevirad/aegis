@@ -1,3 +1,5 @@
+> **Research-era document (2026-08)**, kept as a historical record of the research prototype (`src/`). The current product is described in [README.md](../README.md).
+
 # Evidence Model
 
 The `Evidence` model represents a single, verifiable observation from a telemetry source.

@@ -1,3 +1,5 @@
+> **Research-era document (2026-08)**, kept as a historical record of the research prototype (`src/`). The current product is described in [README.md](../README.md).
+
 # Future Integrations
 
 Aegis is designed to decouple the investigation logic from the deployment environments and telemetry backends. The following are architectural possibilities without requiring core engine changes:

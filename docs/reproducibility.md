@@ -1,3 +1,5 @@
+> **Research-era document**, kept as a historical record of the research prototype (`src/`). The current product is described in [README.md](../README.md).
+
 # Aegis — Reproducibility & Experiment Guide
 
 This guide provides end-to-end instructions for reproducing all Aegis test suites, mock demonstrations, live OpenTelemetry Demo investigations, fault injection experiments, human annotation validation, and replay benchmarks.

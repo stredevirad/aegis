@@ -1,17 +1,74 @@
-# Aegis — 3–5 Minute Live Demonstration Script
+# Aegis — 3–5 Minute Demonstration Script
+
+A step-by-step walkthrough for showing Aegis to an interviewer or reviewer, using the one-command stack. The research-era script for the frozen prototype is kept at the end.
+
+## Before the demo (once)
+
+```bash
+scripts/demo-up.sh                 # Windows: scripts\demo-up.ps1  →  http://localhost:8080
+```
+
+To also show the live path, start with `scripts/demo-up.sh --live` at least 3 minutes before the demo, so the services have some history. Close other heavy applications; the live profile uses about 1 GB.
+
+## 1. The problem (30 s)
+
+> "When a microservice breaks, an on-call engineer has to collect metrics, logs and traces and work out which service caused it. LLM tools sound confident even when the evidence is thin. Aegis decides deterministically from cited evidence, refuses to guess when the evidence is weak, and lets an LLM only explain or lower confidence."
+
+## 2. A confirmed root cause (60 s)
+
+1. Sign in at http://localhost:8080 with `admin@example.com` (development login).
+2. Dashboard → **Recent incidents** → "Checkout error rate above 5% on the storefront" → **Investigations** → **Open**.
+3. Point at the verdict: **Strongly supported**, root cause **catalog**, mechanism **change-induced (feature flag)**.
+4. Point at the checks: baseline valid, propagation (failing traces end in catalog), isolation, change scope (a flag change 0.5 min before onset), modality agreement. Each one cites evidence.
+5. Click an evidence ID such as `ev-change-…`: it scrolls to and highlights the cited item. Then open the **Evidence explorer**.
+
+> "Every claim is a link to evidence. Nothing is asserted without a citation."
+
+## 3. It refuses to guess (60 s)
+
+1. Incidents → "Frontend errors rising (edge metrics only)" → open its investigation.
+2. **Not enough evidence**, **NO FINDING**, and concrete **next checks** (what frontend depends on, failing traces, recent changes), plus the coverage gaps that caused the abstention.
+3. Incidents → "Frontend 5xx spike with suspicious error log messages". The logs contain injected text claiming `payments` is the root cause. The verdict still names **catalog**, and in the evidence list the injected text is shown as plain data.
+
+> "Abstention is a first-class answer. Injected text in telemetry is data, never instructions."
+
+## 4. The live path (optional, 90 s; needs `--live`)
+
+1. Run `scripts/demo-fault.sh`. It sets `catalog.error_rate=0.4` on the demo flag service, and the change lands in Aegis's change feed.
+2. Within about a minute, Prometheus fires `HighErrorRate`, Alertmanager posts to Aegis, incidents open for catalog and frontend, and each is investigated automatically from live Prometheus, Jaeger and Loki data.
+3. Show the catalog incident's verdict. In the recorded run (2026-11-09) it was **PLAUSIBLE, root cause catalog, feature-flag mechanism**, and the engine said why it wasn't CONFIRMED: no valid 60-minute baseline on a freshly started stack.
+4. Run `scripts/demo-fault.sh --reset`.
+
+## 5. Under the hood (60 s, pick two)
+
+- PostgreSQL row-level security with `FORCE`, and pooled-connection leak tests (`backend/tests/db/test_pool_isolation.py`).
+- The job queue on `SKIP LOCKED` with leases and reaping (`backend/aegis/jobs/queue.py`).
+- SSRF-safe egress: DNS pinning, deny ranges, no redirects (`backend/aegis/integrations/egress.py`).
+- The LLM validator: it can only lower confidence (`backend/aegis/llm/validate.py`, ADR-009).
+- CI: 360 backend tests (134 on real PostgreSQL), 3 browser E2E tests against this stack, and gitleaks.
+
+## Afterwards
+
+`scripts/demo-down.sh` removes the containers and volumes.
+
+---
+
+## Research-era demo (2026-08, frozen prototype)
+
+> Kept as a historical record. It drives the research prototype in `src/` (OpenTelemetry Demo, Ollama, SQLite), not the current product.
 
 This script provides a concise, step-by-step walkthrough for demonstrating Aegis to technical interviewers, colleagues, or research reviewers.
 
 ---
 
-## Prerequisites (Before Demo Begins)
+### Prerequisites (Before Demo Begins)
 1. Terminal 1: Docker stack running (`.\scripts\start-otel-demo.ps1`).
 2. Terminal 2: Ollama running with `qwen3.5:4b` (`ollama run qwen3.5:4b`).
 3. Terminal 3: Active repository environment (`.venv\Scripts\Activate.ps1`).
 
 ---
 
-## Demonstration Sequence
+### Demonstration Sequence
 
 ### [0:00 - 0:45] Step 1: Environment & Baseline Verification
 **Presenter Narrative**:
@@ -98,7 +155,7 @@ Invoke-WebRequest -Uri "http://localhost:8080/api/products/OLJCESPC7Z" | Select-
 
 ---
 
-## Key Talking Points Summary
+### Key Talking Points Summary
 1. **Clean Architecture**: Domain core has zero external adapter dependencies.
 2. **Pre-LLM Summarization**: Prevents false negatives that occur when context is naively truncated.
 3. **Error-Focused Efficiency**: Yields 2.3x faster execution and 59% less evidence noise.
