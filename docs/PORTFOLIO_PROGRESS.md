@@ -53,8 +53,19 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 - [x] 7. Checkpoint `checkpoint-p5`; final report; ask about stretch phases
 
 ## Phase 6: Final fixes and polish (closing phase)
-- [ ] 6.1 Remediation lost-update race (test by Claude, fix by owner)
-- [ ] 6.2 Reconciler / maintenance-loop fault isolation (test by Claude, fix by owner)
+The earlier tutor-mode plan (owner writes the fixes) was cancelled by the owner on 2026-11-09; Claude does every item.
+- [ ] 6.1 Remediation lost update: regression test (fails first), then compare-and-set final writes in `execute()`/`rollback()`; 0 rows → keep the reconciled row, audit the late outcome, return the current row
+- [ ] 6.2 Maintenance-loop fault isolation: tests, per-row `except Exception` in `reconcile_stuck()` (missing row handled), `except Exception` in `Worker._maintenance()` (never `BaseException`); README Limitations + Open follow-ups updated
+- [ ] 6.3 `.github/dependabot.yml`: `open-pull-requests-limit: 0` for every ecosystem
+- [ ] 6.4 `core/decide.py`: render modality lists as plain text, not a Python list repr
+- [ ] 6.5 `RcaView.tsx` VerdictSummary: readable headline from structured root causes (`mechanismLabel()`), Vitest test
+- [ ] 6.6 `ci.yml`: drop "(private-repo Actions minutes)" from the paths-ignore comment
+- [ ] 6.7 README: plain-language sentence, results lead lines, frozen-research line; links and numbers verified
+- [ ] 6.8 Media: screenshots + reproducible GIF (env-gated spec + ffmpeg) from a fresh demo stack
+- [ ] 6.9 `private/INTERVIEW_PREP.md` (gitignored): anchors, both bugs explained, honest authorship answer
+- [ ] 6.10 Every CLAUDE.md gate incl. Playwright against the stack; Phase 6 ledger entry
+- [ ] 6.11 Push, CI green, tags `v1.0.1` + `checkpoint-p6`, GitHub release v1.0.1
+- [ ] 6.12 GitHub housekeeping: close Dependabot PRs #1–#3, topics, security settings, main ruleset
 
 ## Deferred (cut by the 2026-11-08 portfolio re-scope; not built)
 - Helm / Kubernetes deployment (M9): Docker Compose is enough for a one-command portfolio demo.
