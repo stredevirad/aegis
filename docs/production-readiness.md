@@ -9,7 +9,7 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 | Suite | Command (from) | Result | Date |
 |---|---|---|---|
 | Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 366 passed, 4 deselected, gate green (Phase 6) | 2026-11-09 |
-| CI on GitHub Actions (all jobs) | `.github/workflows/ci.yml`, [run 42594753903](https://github.com/stredevirad/aegis/actions/runs/42594753903) on d211838 | backend 360 passed / 0 skipped (`AEGIS_REQUIRE_DB=1`; 134 PostgreSQL tests) + mypy strict + benchmark gate; research 159; frontend 78 + build; images; gitleaks 73 commits clean; E2E 3 passed against the compose stack | 2026-11-09 |
+| CI on GitHub Actions (all jobs) | `.github/workflows/ci.yml`, [run 42643499927](https://github.com/stredevirad/aegis/actions/runs/42643499927) on b72be46 (Phase 6) | backend 366 passed / 0 skipped (`AEGIS_REQUIRE_DB=1`; 137 PostgreSQL tests) + mypy strict + benchmark gate; research 159; frontend 81 + build; images; gitleaks 94 commits clean; E2E 3 passed, 2 skipped (env-gated media/GIF specs) against the compose stack | 2026-11-09 |
 | Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m db -q` (`backend/`) | 137 passed, 2 skipped (the two `db` + `live` tests: no live services), 231 deselected (Phase 6) | 2026-11-09 |
 | Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 (Phase 6) | 2026-11-09 |
 | Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-11-09 |
@@ -43,7 +43,8 @@ Both remediation findings from the Phase 1 automated security review are fixed, 
   * Research suite: 159 passed, 6 deselected.
   * Frontend: typecheck + lint clean, 81 passed in 8 files, build OK.
   * Playwright against the compose stack: 3 passed, 2 skipped (env-gated media/GIF specs). The stack was stopped afterwards.
-* What this does not show: the race is tested by forcing the interleaving inside one process (the sweeper runs inside the patched flag write). There is no multi-process or load test of it. The CI result is recorded in the snapshot table above after the push.
+* What this does not show: the race is tested by forcing the interleaving inside one process (the sweeper runs inside the patched flag write). There is no multi-process or load test of it.
+* CI after the push: [run 42643499927](https://github.com/stredevirad/aegis/actions/runs/42643499927) on b72be46, all 6 jobs green (counts in the snapshot table). Released as v1.0.1 (tags `v1.0.1` and `checkpoint-p6`).
 
 ### 2026-11-09 — Portfolio Phase 5: README, media, docs, release
 
