@@ -86,17 +86,38 @@ function reveal(el: HTMLElement) {
 
 // --- verdict ----------------------------------------------------------------------------------
 
+/** Headline and summary for people. A verdict that names root causes is worded from the
+ *  structured root causes ("catalog — Change-induced (feature flag)"), not from the backend's
+ *  display_label, which embeds raw mechanism codes ("catalog (change_induced:feature_flag)") and
+ *  stays unchanged because stored results contain it. Other verdicts carry no codes: shown as is. */
+function verdictText(investigation: Investigation): { label: string | null; summary: string | null } {
+  const p = presentClassification(investigation.classification);
+  const roots = investigation.root_causes ?? [];
+  if (!p.presentsFindings || roots.length === 0) {
+    return { label: investigation.display_label, summary: investigation.summary };
+  }
+  const names = roots.map((rc) => `${rc.service} — ${mechanismLabel(rc.mechanism)}`).join("; ");
+  return {
+    label: `${p.label}: ${names}`,
+    summary:
+      p.tone === "strong"
+        ? `Root cause strongly supported by independent evidence: ${names}.`
+        : `Likely root cause: ${names}. Not every distinguishing check could be completed.`,
+  };
+}
+
 export function VerdictSummary({ investigation }: { investigation: Investigation }) {
   const p = presentClassification(investigation.classification);
   const ai = investigation.ai;
+  const text = verdictText(investigation);
   return (
     <Layer kind="verdict" title="Deterministic verdict">
       <div className="verdict-line">
         <VerdictBadge classification={investigation.classification} />
         <SupportBadge support={investigation.support} />
       </div>
-      {investigation.display_label ? <p className="verdict-label">{investigation.display_label}</p> : null}
-      {investigation.summary ? <p className="verdict-summary">{investigation.summary}</p> : null}
+      {text.label ? <p className="verdict-label">{text.label}</p> : null}
+      {text.summary ? <p className="verdict-summary">{text.summary}</p> : null}
       <p className="muted small">{p.explanation}</p>
       {ai && ai.status === "accepted" && ai.lowered ? (
         <Notice tone="warning" title="AI lowered the deterministic result" role="note">

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Evidence, Graph, Investigation } from "../../api/types";
 import { jsonResponse, mockFetch, renderWithProviders } from "../../test/utils";
-import { RcaView } from "./RcaView";
+import { RcaView, VerdictSummary } from "./RcaView";
 
 function evidence(id: string, summary: string): Evidence {
   return {
@@ -123,5 +123,71 @@ describe("RcaView citations", () => {
     expect(within(unc).getByText("traces: span status unknown for 30% of spans")).toBeInTheDocument();
     // no AI section when the API sends no assessment
     expect(screen.queryByRole("region", { name: /ai assessment/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("VerdictSummary headline", () => {
+  const rc = (service: string, mechanism: string, support = "moderate") => ({
+    service,
+    mechanism,
+    support,
+    supporting_evidence_ids: [],
+    contradicting_evidence_ids: [],
+  });
+
+  it("names the root cause with the readable mechanism, never the raw code", () => {
+    renderWithProviders(
+      <VerdictSummary
+        investigation={{
+          ...inv,
+          classification: "CONFIRMED",
+          support: "strong",
+          display_label: "Strongly supported: catalog (change_induced:feature_flag)",
+          summary: "Root cause strongly supported by independent evidence: catalog (change_induced:feature_flag).",
+          root_causes: [rc("catalog", "change_induced:feature_flag", "strong")],
+        }}
+      />,
+    );
+    const verdict = screen.getByRole("region", { name: /deterministic verdict/i });
+    expect(
+      within(verdict).getByText("Strongly supported: catalog — Change-induced (feature flag)"),
+    ).toBeInTheDocument();
+    expect(verdict.textContent).not.toMatch(/change_induced:|\(error_throwing\)/);
+  });
+
+  it("words every root cause of a multi-fault verdict the same way", () => {
+    renderWithProviders(
+      <VerdictSummary
+        investigation={{
+          ...inv,
+          display_label: "Likely cause: catalog (error_throwing), payments (error_throwing)",
+          summary: "Likely root cause: catalog (error_throwing), payments (error_throwing).",
+          root_causes: [rc("catalog", "error_throwing"), rc("payments", "error_throwing")],
+        }}
+      />,
+    );
+    const verdict = screen.getByRole("region", { name: /deterministic verdict/i });
+    expect(
+      within(verdict).getByText(
+        "Likely cause: catalog — Errors thrown by the service; payments — Errors thrown by the service",
+      ),
+    ).toBeInTheDocument();
+    expect(verdict.textContent).not.toMatch(/change_induced:|\(error_throwing\)/);
+  });
+
+  it("shows an abstention as the backend worded it", () => {
+    renderWithProviders(
+      <VerdictSummary
+        investigation={{
+          ...inv,
+          classification: "INSUFFICIENT",
+          support: "none",
+          display_label: "Not enough evidence — next check: restore missing telemetry",
+          summary: "Nothing anomalous was found, but coverage is too incomplete to say so.",
+          root_causes: [],
+        }}
+      />,
+    );
+    expect(screen.getByText("Not enough evidence — next check: restore missing telemetry")).toBeInTheDocument();
   });
 });
