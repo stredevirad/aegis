@@ -45,3 +45,15 @@ external/
 *.db
 aegis_demo.db
 aegis.db
+
+# Claude Code: local worktrees, per-user settings and the owner's prompt (settings.json stays tracked)
+.claude/worktrees/
+.claude/settings.local.json
+.claude/MASTER_PROMPT.md
+
+# Owner-only notes, browser-test output, recordings, secret-scan reports
+private/
+frontend/test-results/
+frontend/playwright-report/
+*.webm
+.gitleaks-report.json
