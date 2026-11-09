@@ -1,0 +1,9 @@
+# Connectors for the demo profile's telemetry backends (deploy/compose.yaml --profile demo).
+# Mounted into the API and worker as AEGIS_CONNECTORS_FILE. A connector is usable only after an
+# organization creates an integration for it; the demo profile's `init-demo` does that for
+# "demo". The backends are on the compose network, so they use private addresses over plain
+# HTTP. Both are acknowledged explicitly; the egress client refuses them otherwise.
+connectors:
+  - {id: demo-prom, kind: prometheus, url: "http://prometheus:9090", orgs: [demo], allow_private: true, insecure_http: true}
+  - {id: demo-jaeger, kind: jaeger, url: "http://jaeger:16686", orgs: [demo], allow_private: true, insecure_http: true}
+  - {id: demo-loki, kind: loki, url: "http://loki:3100", orgs: [demo], allow_private: true, insecure_http: true}

@@ -8,7 +8,7 @@
     aegis admin invite --org S --email E --role R
     aegis admin set-user-disabled --email E (--disabled | --enabled)
     aegis admin seed-demo --org S            synthetic demo incidents + queued investigations
-    aegis admin create-api-key --org S --scope SCOPE [--scope ...] --out FILE [--name N] [--days D]
+    aegis admin create-api-key --org S --scope SCOPE [--scope ...] --out FILE [--mode 600|640|644]
     aegis audit verify --org S
 
 Operator commands connect with ``AEGIS_MIGRATION_DATABASE_URL`` (the owning role): they act
@@ -22,6 +22,7 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import os
 import signal
 import sys
 import uuid
@@ -213,19 +214,34 @@ async def set_user_disabled(dsn: str, email: str, disabled: bool) -> int:
 API_KEY_SCOPES = ("ingest:alerts", "ingest:changes", "read")
 
 
-def _write_secret_file(path: Path, secret: str) -> None:
-    """Write atomically (temp file + rename), world-readable 0644: the demo consumers
-    (Alertmanager as ``nobody``, the flag service as uid 10001) run as other users and get the
-    volume read-only."""
+def _write_secret_file(path: Path, secret: str, mode: int = 0o600) -> None:
+    """Write atomically: an exclusively created temp file (``mkstemp``: unpredictable name,
+    ``O_EXCL``, owner-only) in the target directory, chmod to ``mode``, then rename over ``path``.
+    The default is owner-only; the compose demo passes 0644 because its read-only consumers
+    (Alertmanager as ``nobody``, the flag service) run as other users."""
+    import tempfile
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(secret + "\n", encoding="utf-8")
-    tmp.chmod(0o644)
-    tmp.replace(path)
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(secret + "\n")
+        tmp.chmod(mode)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 async def create_api_key(
-    settings: Settings, slug: str, name: str, scopes: list[str], days: int, out: Path
+    settings: Settings,
+    slug: str,
+    name: str,
+    scopes: list[str],
+    days: int,
+    out: Path,
+    mode: int = 0o600,
 ) -> str:
     """Mint an organization API key for a machine client and write its secret to ``out``.
 
@@ -271,7 +287,7 @@ async def create_api_key(
                 },
             )
             # Written inside the transaction: if the file can't be written, no key is created.
-            _write_secret_file(out, secret)
+            _write_secret_file(out, secret, mode)
         return str(row["prefix"])
     finally:
         await engine.dispose()
@@ -351,6 +367,9 @@ def main(argv: list[str] | None = None) -> int:
     ck.add_argument("--out", required=True, type=Path)
     ck.add_argument("--name", default="operator-cli")
     ck.add_argument("--days", type=int, default=90, choices=range(1, 366), metavar="1..365")
+    ck.add_argument(
+        "--mode", default="600", choices=["600", "640", "644"], help="file mode (octal)"
+    )
     sd = adm.add_parser("seed-demo", help="synthetic demo incidents with queued investigations")
     sd.add_argument("--org", required=True)
     aud = sub.add_parser("audit").add_subparsers(dest="audit_command", required=True)
@@ -389,7 +408,15 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write(f"organization {args.slug} {org_id}\n")
         elif args.admin_command == "create-api-key":
             prefix = asyncio.run(
-                create_api_key(settings, args.org, args.name, args.scope, args.days, args.out)
+                create_api_key(
+                    settings,
+                    args.org,
+                    args.name,
+                    args.scope,
+                    args.days,
+                    args.out,
+                    int(args.mode, 8),
+                )
             )
             sys.stdout.write(f"api key {prefix} ({', '.join(args.scope)}) written to {args.out}\n")
         elif args.admin_command == "seed-demo":

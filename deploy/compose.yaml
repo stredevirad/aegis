@@ -1,14 +1,53 @@
 # Aegis local stack.
 #
-#   docker compose -f deploy/compose.yaml --profile demo up -d --build     # demo telemetry stack
+#   docker compose -f deploy/compose.yaml up -d --build --wait                  # Aegis (core)
+#   docker compose -f deploy/compose.yaml --profile demo up -d --build --wait   # + live telemetry demo
+#   (or scripts/demo-up.sh / scripts/demo-up.ps1)
+#
+# Core (no profile): PostgreSQL; a one-shot `init` (roles, migrations, organization "demo",
+# ingest keys); the API; the worker; a one-shot `seed` (four synthetic demo incidents); and the
+# web UI on http://localhost:8080 (development login: admin@example.com).
+#
+# DEMO MODE: the core stack runs the API in the development profile, with the development login
+# and fixed, publicly known demo secrets. It's for a laptop demo only, so never expose it beyond
+# localhost. A real deployment needs OIDC, HTTPS and its own secrets (docs/security-model.md).
 #
 # Profiles:
 #   demo   small instrumented services -> OTel Collector -> Prometheus / Jaeger / Loki,
-#          Alertmanager, a flag service with a reversible fault, a load generator
+#          Alertmanager, a flag service with a reversible fault, a load generator, and a
+#          one-shot `init-demo` that connects organization "demo" to them (live investigations)
 #
-# Memory limits keep the whole demo well under 2 GB (measured; see docs/production-readiness.md).
-# Ports are bound to 127.0.0.1 only.
+# Memory limits keep the demo profile well under 2 GB (measured; see docs/production-readiness.md).
+# Ports are bound to 127.0.0.1 only; only `web` and the demo tools publish ports.
 name: aegis
+
+# --- Aegis core ------------------------------------------------------------------------------
+
+x-aegis-image: &aegis-image
+  image: aegis-backend:dev
+  build:
+    context: ../backend
+    additional_contexts:
+      scenarios: ../eval/scenarios
+
+# One environment for init, api, worker and seed. API keys are peppered with AEGIS_SECRET_KEY,
+# so keys minted by `init` verify only on an API with the same value.
+x-aegis-env: &aegis-env
+  AEGIS_PROFILE: development          # DEMO MODE (see header)
+  AEGIS_AUTH_MODE: dev                # DEMO MODE: email-only development login
+  AEGIS_LOG_JSON: "false"
+  AEGIS_SECRET_KEY: ${AEGIS_SECRET_KEY:-demo-only-secret-key-not-for-production-use-0000}
+  AEGIS_DATABASE_URL: postgresql+asyncpg://aegis_app:${AEGIS_DEMO_APP_PASSWORD:-demo-app-password}@postgres:5432/aegis
+  AEGIS_MIGRATION_DATABASE_URL: postgresql+asyncpg://aegis_owner:${AEGIS_DEMO_OWNER_PASSWORD:-demo-owner-password}@postgres:5432/aegis
+  AEGIS_PUBLIC_BASE_URL: http://localhost:8080
+  AEGIS_ALLOWED_ORIGINS: '["http://localhost:8080","http://127.0.0.1:8080"]'
+  AEGIS_CONNECTORS_FILE: /etc/aegis/connectors.yaml
+
+x-aegis-service: &aegis-service
+  <<: *aegis-image
+  environment: *aegis-env
+  volumes:
+    - ./connectors.demo.yaml:/etc/aegis/connectors.yaml:ro
 
 # The demo image is built once (by the "flags" service); the others reuse it.
 x-demo-service: &demo-service
@@ -23,6 +62,104 @@ x-demo-service: &demo-service
   profiles: ["demo"]
 
 services:
+  postgres:
+    image: postgres:16.15-alpine
+    environment:
+      POSTGRES_PASSWORD: ${AEGIS_DEMO_SUPERUSER_PASSWORD:-demo-superuser-password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 512m
+    restart: unless-stopped
+
+  # One-shot: roles + database, migrations, organization "demo" (admin@example.com invited),
+  # and the two ingest keys that the demo profile's Alertmanager and flag service read.
+  # Idempotent; the keys are re-minted on every run.
+  init:
+    <<: *aegis-service
+    command:
+      - sh
+      - -ec
+      - |
+        aegis bootstrap-db --database aegis
+        aegis migrate upgrade
+        aegis admin create-org --slug demo --name Demo --admin-email admin@example.com
+        aegis admin create-api-key --org demo --name alertmanager --scope ingest:alerts --mode 644 --out /run/aegis/alert-ingest-key
+        aegis admin create-api-key --org demo --name flag-service --scope ingest:changes --mode 644 --out /run/aegis/change-ingest-key
+    environment:
+      <<: *aegis-env
+      AEGIS_BOOTSTRAP_SUPERUSER_URL: postgresql://postgres:${AEGIS_DEMO_SUPERUSER_PASSWORD:-demo-superuser-password}@postgres:5432/postgres
+      AEGIS_BOOTSTRAP_OWNER_PASSWORD: ${AEGIS_DEMO_OWNER_PASSWORD:-demo-owner-password}
+      AEGIS_BOOTSTRAP_APP_PASSWORD: ${AEGIS_DEMO_APP_PASSWORD:-demo-app-password}
+    volumes:
+      - ./connectors.demo.yaml:/etc/aegis/connectors.yaml:ro
+      - aegis-keys:/run/aegis
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  api:
+    <<: *aegis-service
+    command: ["aegis", "api", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    mem_limit: 512m
+    restart: unless-stopped
+
+  worker:
+    <<: *aegis-service
+    command: ["aegis", "worker"]
+    environment:
+      <<: *aegis-env
+      AEGIS_WORKER_HEALTH_FILE: /tmp/aegis-worker-health
+    depends_on:
+      init: {condition: service_completed_successfully}
+    # The maintenance loop touches the file every 10 s while the event loop is alive.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/aegis-worker-health') < 60 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 512m
+    restart: unless-stopped
+
+  # One-shot: four synthetic demo incidents with queued scenario investigations (idempotent).
+  seed:
+    <<: *aegis-service
+    command: ["aegis", "admin", "seed-demo", "--org", "demo"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+      worker: {condition: service_healthy}
+    restart: "no"
+
+  web:
+    build: ../frontend
+    image: aegis-web:dev
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      api: {condition: service_healthy}   # nginx resolves the api upstream at startup
+      seed: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 64m
+    restart: unless-stopped
+
+  # --- demo profile: live telemetry ----------------------------------------------------------
+
   frontend:
     <<: *demo-service
     environment:
@@ -63,6 +200,8 @@ services:
       AEGIS_CHANGE_KEY_FILE: /run/aegis/change-ingest-key
     volumes:
       - aegis-keys:/run/aegis:ro
+    depends_on:
+      init: {condition: service_completed_successfully}
     ports: ["127.0.0.1:18081:8080"]
     mem_limit: 96m
     restart: unless-stopped
@@ -109,6 +248,8 @@ services:
     volumes:
       - ../demo/config/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
       - aegis-keys:/run/aegis:ro
+    depends_on:
+      init: {condition: service_completed_successfully}
     ports: ["127.0.0.1:19093:9093"]
     mem_limit: 64m
     restart: unless-stopped
@@ -131,5 +272,24 @@ services:
     restart: unless-stopped
     profiles: ["demo"]
 
+  # One-shot (demo profile): connects organization "demo" to the demo Prometheus, Jaeger and Loki
+  # (one integration per connector in connectors.demo.yaml) and makes automatic investigations
+  # of alert-created incidents use live telemetry. Same setup as
+  # backend/tests/integrations/test_live_demo.py, done through the public API.
+  init-demo:
+    <<: *aegis-image
+    command: ["python", "/opt/aegis/init-demo.py"]
+    environment:
+      AEGIS_API_URL: http://api:8000
+      AEGIS_DEMO_ORIGIN: http://localhost:8080
+      AEGIS_DEMO_ADMIN: admin@example.com
+    volumes:
+      - ./demo/init-demo.py:/opt/aegis/init-demo.py:ro
+    depends_on:
+      api: {condition: service_healthy}
+    restart: "no"
+    profiles: ["demo"]
+
 volumes:
+  pgdata:
   aegis-keys:

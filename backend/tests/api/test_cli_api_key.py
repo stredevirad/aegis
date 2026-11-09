@@ -1,6 +1,6 @@
 """``aegis admin create-api-key``: the minted key authenticates on its scope only, the secret goes
-to the output file and never to stdout/stderr, and the file is written atomically (0644 on
-POSIX, so the read-only demo consumers can read it)."""
+to the output file and never to stdout/stderr, and the file is written atomically (owner-only by
+default; ``--mode 644`` for the read-only demo consumers; modes are checked on POSIX only)."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ async def test_minted_key_works_on_its_scope_and_is_never_printed(
     t = await tenant_factory("ck")
     out = tmp_path / "keys" / "alert-ingest-key"
     prefix = await cli.create_api_key(
-        cli_settings, t.slug, "alertmanager", ["ingest:alerts"], 30, out
+        cli_settings, t.slug, "alertmanager", ["ingest:alerts"], 30, out, 0o644
     )
     secret = out.read_text(encoding="utf-8").strip()
     assert prefix and prefix in secret
@@ -80,6 +80,8 @@ def test_cli_entry_point_prints_only_the_prefix(
         ]
         assert cli.main(argv) == 0
         secret = out.read_text(encoding="utf-8").strip()
+        if os.name == "posix":  # owner-only unless --mode widens it
+            assert stat.S_IMODE(out.stat().st_mode) == 0o600
         printed = capsys.readouterr()
         assert "ingest:changes" in printed.out and str(out) in printed.out
         assert secret not in printed.out and secret not in printed.err
