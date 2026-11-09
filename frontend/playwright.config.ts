@@ -22,6 +22,8 @@ export default defineConfig({
     baseURL,
     viewport: { width: 1366, height: 900 },
     video: record ? { mode: "on", size: { width: 1366, height: 900 } } : "retain-on-failure",
+    // Recording for the README GIF: slow down so a viewer can follow the clicks.
+    launchOptions: record ? { slowMo: 400 } : {},
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
