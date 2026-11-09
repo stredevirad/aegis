@@ -38,7 +38,7 @@ jobs:
       AEGIS_TEST_SUPERUSER_URL: postgresql://postgres:devsuperuser@127.0.0.1:55432/postgres
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3   # no moving major tag is published from v8 on
         with:
           version: "0.12.15"
           python-version: "3.13"
@@ -60,7 +60,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3   # no moving major tag is published from v8 on
         with:
           version: "0.12.15"
           python-version: "3.13"
