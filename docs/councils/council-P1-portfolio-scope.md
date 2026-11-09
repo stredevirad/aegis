@@ -1,6 +1,6 @@
 # Council P1: Portfolio scope
 
-**Date:** 2026-11-08 · **Protocol:** `llm-council` skill (5 advisors → 5 anonymized peer reviews → chairman synthesis), run by the owner outside this repo. This is a summary; the full transcript isn't stored here.
+**Date:** 2026-11-08 · **Protocol:** `llm-council` skill (5 advisors → 5 anonymized peer reviews → chairman synthesis). This is a summary; the full transcript isn't stored in this repo.
 
 ## Question
 How much of the original production roadmap (M0–M11) is still worth building, given that the goal is a portfolio project a student owner can defend in interviews, on a Pro-plan budget and a 16 GB laptop?

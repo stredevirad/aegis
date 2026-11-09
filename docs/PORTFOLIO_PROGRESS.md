@@ -76,7 +76,7 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 
 ## Open follow-ups (not in any phase; owner decides)
 - Automated security review (2026-11-09) of 8b5fbad, `backend/aegis/remediation/`. Not fixed in Phase 1 (scope rule 9); both judged plausible but low-likelihood:
-  1. `RemediationService.execute`/`rollback` write the final status unconditionally (no `WHERE status='executing'`/`'rolling_back'` compare-and-set). If `reconcile_stuck()` (300 s staleness) marks a row failed while a slow flag request is still in flight, the late final write would overwrite `failed`. That needs a request in flight longer than 300 s, which egress timeouts make unlikely. Fix: CAS the final write and treat 0 rows as "already reconciled".
+  1. `RemediationService.execute`/`rollback` write the final status unconditionally (no `WHERE status='executing'`/`'rolling_back'` compare-and-set). If `reconcile_stuck()` (300 s staleness) marks a row `failed`/`rollback_failed` while a slow flag request is still in flight, the late final write would overwrite that status. That needs a request in flight longer than 300 s, which egress timeouts make unlikely. Fix: CAS the final write and treat 0 rows as "already reconciled".
   2. `reconcile_stuck()` uses `.one()` and catches only `FlagError`/`RemediationError`, and the worker's `_maintenance` loop catches only `DBAPIError`/`OSError`. An unexpected exception for one row (e.g. the proposal/action row missing) would end the maintenance task, and with it lease reaping, until the worker restarts. Fix: per-row `except Exception` with `log.exception` + `.first()`, and a broader catch in `_maintenance`.
 
 ## Facts that differ from the 2026-11-08 snapshot

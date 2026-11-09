@@ -10,14 +10,15 @@ so no verdict document exists. This note records only what can still be verified
 
 ## Known outcomes (committed in 8b5fbad, 2026-11-09)
 
-1. **Per-integration LLM circuit breaker.** The breaker is keyed per integration, and client
-   4xx errors (bad key, bad request) no longer trip it. One tenant's misconfigured key can't
+1. **Per-integration LLM circuit breaker.** The breaker is keyed per integration
+   (`integration:<id>`). Client 4xx errors other than 429 (bad key, bad request) are classed as
+   `client_error` and no longer trip it. One tenant's misconfigured key can't
    open the breaker for other tenants. Code: `backend/aegis/llm/providers.py`,
    `backend/aegis/llm/adjudicate.py`. Tests: `backend/tests/llm/test_prompt_and_providers.py`.
 2. **Reconciling stranded remediations.** `reconcile_stuck()` in
    `backend/aegis/remediation/runner.py` finds proposals stuck in `executing`/`rolling_back`
-   after a crash. It re-reads the target and marks them `failed` with an uncertain outcome. It
-   never re-executes. Migration `0008_remediation_sweep` adds the leased, `SKIP LOCKED`
+   after a crash. It re-reads the target and marks them `failed` (or `rollback_failed` for a
+   stranded rollback) with `uncertain: true`. It never re-executes. Migration `0008_remediation_sweep` adds the leased, `SKIP LOCKED`
    claim function the worker's maintenance loop uses. Tests: `backend/tests/api/test_remediation.py`.
 
 ## Superseded
