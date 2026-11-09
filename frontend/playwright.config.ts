@@ -2,7 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 // Browser tests against a REAL backend: the dev stack (backend/scripts/dev-stack.sh + `npm run dev`)
 // by default, or the one-command compose stack with E2E_BASE_URL=http://127.0.0.1:8080.
-// E2E_RECORD=1 records a video of every test (used to produce the README GIF).
+// E2E_RECORD=1 records a video of every test, for review. The README GIF comes from
+// e2e/demo-gif.spec.ts (E2E_GIF=1) and the README screenshots from e2e/media.spec.ts (E2E_MEDIA=1).
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
 const record = process.env.E2E_RECORD === "1";
 

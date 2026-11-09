@@ -9,9 +9,9 @@ When a microservice breaks, Aegis collects its metrics, logs and traces, names t
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-blue)](frontend/package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-![Aegis demo: an incident is investigated and the cited root cause is shown](docs/media/demo.gif)
+![Aegis demo: a confirmed verdict with cited checks, one citation opened, then an abstention](docs/media/demo.gif)
 
-*The golden path, recorded by the committed Playwright test (`frontend/e2e/golden-path.spec.ts`): create an incident, investigate it, read a cited verdict, click a citation to see the evidence.*
+*A confirmed verdict with its cited checks, one citation opened to show the evidence behind it, then an abstention that names no root cause. Recorded from the seeded demo stack by [`frontend/e2e/demo-gif.spec.ts`](frontend/e2e/demo-gif.spec.ts): `cd frontend && E2E_GIF=1 E2E_BASE_URL=http://127.0.0.1:8080 npx playwright test demo-gif` (needs ffmpeg).*
 
 ## The rule that matters
 

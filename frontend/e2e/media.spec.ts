@@ -21,20 +21,26 @@ async function signIn(page: Page) {
   await expect(page.getByRole("link", { name: "Incidents" }).first()).toBeVisible();
 }
 
-/** The completed investigation of a seeded scenario (aegis admin seed-demo). */
+/** The seeded investigation of a scenario (aegis admin seed-demo), once the worker has completed
+ *  it: `up --wait` does not wait for the one-shot seed or the worker. */
 async function seeded(page: Page, scenario: string): Promise<string> {
-  const r = await page.request.get("/api/v1/investigations?limit=100");
-  expect(r.ok()).toBe(true);
-  const body = (await r.json()) as { items: Inv[] };
-  const inv = body.items.find((i) => i.source.scenario === scenario && i.status === "completed");
-  expect(inv, `seeded ${scenario} investigation`).toBeTruthy();
-  return inv!.id;
+  let id = "";
+  await expect(async () => {
+    const r = await page.request.get("/api/v1/investigations?limit=100");
+    expect(r.ok()).toBe(true);
+    const body = (await r.json()) as { items: Inv[] };
+    const inv = body.items.find((i) => i.source.scenario === scenario && i.status === "completed");
+    expect(inv, `completed seeded ${scenario} investigation`).toBeTruthy();
+    id = inv?.id ?? "";
+  }).toPass({ timeout: 120_000 });
+  return id;
 }
 
 /** Scrolls the verdict panel to the top, below the sticky navigation bar. */
 async function scrollToVerdict(page: Page) {
   const heading = page.getByRole("heading", { name: /Deterministic verdict/ });
   await expect(heading).toBeVisible();
+  await expect(page.locator("p.loading")).toHaveCount(0);
   await heading.evaluate((el) => {
     const panel = el.closest("section") ?? el;
     window.scrollTo(0, panel.getBoundingClientRect().top + window.scrollY - 56);
@@ -48,17 +54,12 @@ async function shoot(page: Page, name: string) {
 
 test("README screenshots", async ({ page }) => {
   await signIn(page);
-  await page.waitForTimeout(1000);
-  await shoot(page, "dashboard");
 
   const confirmed = await seeded(page, "s06-feature-flag-failure");
   await page.goto(`/investigations/${confirmed}`);
+  await expect(page.locator("article.finding")).toContainText("Modality agreement");
   await scrollToVerdict(page);
   await shoot(page, "rca-verdict");
-
-  await page.goto(`/investigations/${confirmed}/evidence`);
-  await expect(page.getByRole("article", { name: /^Evidence / }).first()).toBeVisible();
-  await shoot(page, "evidence-explorer");
 
   const abstained = await seeded(page, "s08-insufficient-evidence");
   await page.goto(`/investigations/${abstained}`);
