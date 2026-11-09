@@ -20,7 +20,7 @@ Build order follows Council A: core-first vertical slice → wrap the slice with
 | Council A run; architecture, ADR-006..015, roadmap written | DONE |
 | Councils B (RCA) and C (security) run; ADRs updated (008/009/011/012/014 amended, 016/017 added); security model written | DONE |
 | Held-out expected answers written and hashed before pipeline code | DONE (owner sign-off pending) |
-| License: README claims MIT but no LICENSE file exists | **BLOCKED on owner** — the copyright holder and licence choice are the owner's decision; flagged in the completion report |
+| License: README claims MIT but no LICENSE file exists | DONE (2026-11-09) — owner chose MIT; `LICENSE` © 2026 Joshua Herbert Japheth; `backend/pyproject.toml` `license = { text = "MIT" }` |
 
 ## M1 — Pure RCA core, scenario format, benchmark gate · `DONE` (LLM-free part; see notes)
 Depends on: Council B (done).
