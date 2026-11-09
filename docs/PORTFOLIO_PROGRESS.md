@@ -52,6 +52,10 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 - [x] 6. `gh release create v1.0.0` (repo stays private); final ledger snapshot
 - [x] 7. Checkpoint `checkpoint-p5`; final report; ask about stretch phases
 
+## Phase 6: Final fixes and polish (closing phase)
+- [ ] 6.1 Remediation lost-update race (test by Claude, fix by owner)
+- [ ] 6.2 Reconciler / maintenance-loop fault isolation (test by Claude, fix by owner)
+
 ## Deferred (cut by the 2026-11-08 portfolio re-scope; not built)
 - Helm / Kubernetes deployment (M9): Docker Compose is enough for a one-command portfolio demo.
 - SBOM, image scanning, supply-chain hardening beyond gitleaks + Dependabot: cost/benefit too low at portfolio scale.
