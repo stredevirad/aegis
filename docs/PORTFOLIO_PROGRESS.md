@@ -54,7 +54,7 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 
 ## Phase 6: Final fixes and polish (closing phase)
 The earlier tutor-mode plan (owner writes the fixes) was cancelled by the owner on 2026-11-09; Claude does every item.
-- [ ] 6.1 Remediation lost update: regression test (fails first), then compare-and-set final writes in `execute()`/`rollback()`; 0 rows → keep the reconciled row, audit the late outcome, return the current row
+- [x] 6.1 Remediation lost update: regression test (fails first), then compare-and-set final writes in `execute()`/`rollback()`; 0 rows → keep the reconciled row, audit the late outcome, return the current row — 2 new tests failed first for the right reason (`'verifying' == 'failed'`, `'rolled_back' == 'rollback_failed'`); after the fix (`_finish` CAS + `_keep_reconciled`, audit phase `finished_late`): `test_remediation.py` 12 passed; `check.sh -m "not live"` 362 passed / 4 deselected, benchmark gate OK
 - [ ] 6.2 Maintenance-loop fault isolation: tests, per-row `except Exception` in `reconcile_stuck()` (missing row handled), `except Exception` in `Worker._maintenance()` (never `BaseException`); README Limitations + Open follow-ups updated
 - [ ] 6.3 `.github/dependabot.yml`: `open-pull-requests-limit: 0` for every ecosystem
 - [ ] 6.4 `core/decide.py`: render modality lists as plain text, not a Python list repr

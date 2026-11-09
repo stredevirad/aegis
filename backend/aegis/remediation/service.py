@@ -24,6 +24,10 @@ Invariants (each tested in ``tests/api/test_remediation.py``):
 * **Rollback** applies the inverse that was approved together with the forward action (so it
   does not wait for a second approval mid-incident), again compare-and-set against the state
   the execution produced.
+* **The final writes are compare-and-set too** (``WHERE status = 'executing'`` /
+  ``'rolling_back'``). The stuck-row sweeper (``runner.reconcile_stuck``) cannot tell a slow
+  request from a crash and may mark the row failed first; the late result then matches no row,
+  the reconciled record stays, and the late outcome is kept in the audit log (no lost update).
 * The literal diff (flag key, current value, new value, rollback value) is what reviewers see.
 """
 
@@ -498,7 +502,11 @@ class Remediation:
                 )
             else:
                 values.update(status="failed")
-            row = await self._set(c, org_id, proposal_id, **values)
+            finished = await self._finish(c, org_id, proposal_id, "executing", **values)
+            if finished is None:
+                return await self._keep_reconciled(
+                    c, org_id, actor, proposal_id, Action.REMEDIATION_EXECUTED, result
+                )
             await audit.record(
                 c,
                 org_id,
@@ -511,7 +519,7 @@ class Remediation:
                     **{k: v for k, v in result.items() if k != "observed"},
                 },
             )
-        return row
+        return finished
 
     async def rollback(
         self, org_id: UUID, user: UUID, actor: Actor, proposal_id: UUID
@@ -571,14 +579,19 @@ class Remediation:
                 "uncertain": exc.category in ("timeout", "connect", "http"),
             }
         async with tenant_tx(self.engine, org_id, user) as c:
-            row = await self._set(
+            finished = await self._finish(
                 c,
                 org_id,
                 proposal_id,
+                "rolling_back",
                 status="rolled_back" if result["ok"] else "rollback_failed",
                 rollback={**result, "at": datetime.now(UTC).isoformat()},
                 rolled_back_at=func.now(),
             )
+            if finished is None:
+                return await self._keep_reconciled(
+                    c, org_id, actor, proposal_id, Action.REMEDIATION_ROLLED_BACK, result
+                )
             await audit.record(
                 c,
                 org_id,
@@ -588,7 +601,7 @@ class Remediation:
                 target_id=proposal_id,
                 details={k: v for k, v in result.items() if k != "observed"},
             )
-        return row
+        return finished
 
     # --- helpers --------------------------------------------------------------------------------
 
@@ -653,6 +666,54 @@ class Remediation:
             .one()
         )
         return dict(row)
+
+    async def _finish(
+        self, c: AsyncConnection, org_id: UUID, proposal_id: UUID, claimed: str, **values: Any
+    ) -> dict[str, Any] | None:
+        """Final write of execute()/rollback(): compare-and-set on the status the call claimed.
+        ``None`` (0 rows) means the row left that status while the target request was in
+        flight: the stuck-row sweeper reconciled it. The caller must not overwrite it."""
+        row = (
+            (
+                await c.execute(
+                    update(remediation_proposals)
+                    .where(
+                        remediation_proposals.c.org_id == org_id,
+                        remediation_proposals.c.id == proposal_id,
+                        remediation_proposals.c.status == claimed,
+                    )
+                    .values(updated_at=func.now(), **values)
+                    .returning(remediation_proposals)
+                )
+            )
+            .mappings()
+            .first()
+        )
+        return None if row is None else dict(row)
+
+    async def _keep_reconciled(
+        self,
+        c: AsyncConnection,
+        org_id: UUID,
+        actor: Actor,
+        proposal_id: UUID,
+        action: Action,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """The sweeper's record stays on the row. The late outcome, including the target state
+        it saw or produced, goes to the audit log so it is not lost; the current row is
+        returned."""
+        row = dict(await self._lock(c, org_id, proposal_id))
+        await audit.record(
+            c,
+            org_id,
+            actor,
+            action,
+            target_type="remediation",
+            target_id=proposal_id,
+            details={"phase": "finished_late", "kept_status": row["status"], **result},
+        )
+        return row
 
 
 async def integration_kind(c: AsyncConnection, org_id: UUID, integration_id: UUID) -> str | None:

@@ -424,3 +424,115 @@ async def test_stranded_execution_is_reconciled_and_unblocks_new_proposals(
         )
         == 0
     )
+
+
+def _sweep_while_target_write_in_flight(w, app_engine, monkeypatch) -> list[int]:
+    """Make the flag write slow in the one way that matters: after it has reached the flag
+    service but before it returns, the stuck-row sweeper runs (as if the request had been in
+    flight longer than the staleness window). Returns the sweeper's results (once)."""
+    from aegis.remediation.flags import FlagClient
+    from aegis.remediation.runner import reconcile_stuck
+    from aegis.remediation.service import Remediation
+
+    st = w["app"].state.aegis
+    real_set = FlagClient.set
+    swept: list[int] = []
+
+    async def set_then_sweep(self, key, value, actor, if_version):
+        after = await real_set(self, key, value, actor, if_version)
+        if not swept:
+            swept.append(
+                await reconcile_stuck(
+                    app_engine,
+                    Remediation(app_engine, st.settings, st.registry, st.keyring, st.egress),
+                    "w-sweep",
+                    stale_seconds=0,
+                )
+            )
+        return after
+
+    monkeypatch.setattr(FlagClient, "set", set_then_sweep)
+    return swept
+
+
+async def _audit(w, proposal_id: str) -> list[dict]:
+    return (
+        await w["admin"].get(
+            "/api/v1/audit", params={"target_type": "remediation", "target_id": proposal_id}
+        )
+    ).json()["items"]
+
+
+async def test_late_execution_result_does_not_overwrite_a_reconciled_row(
+    world, app_engine, monkeypatch
+):
+    """Lost update: the sweeper cannot tell a slow request from a crash, so it may mark an
+    'executing' row failed while execute() is still waiting for the target. The late final
+    write must not overwrite that record; the real outcome goes to the audit log instead."""
+    w = world
+    await _enable(w)
+    p = (await _propose(w, w["admin"])).json()
+    await (await w["login"](w["a"], "reviewer")).post(
+        f"/api/v1/remediations/{p['id']}/approve", headers=CSRF
+    )
+    swept = _sweep_while_target_write_in_flight(w, app_engine, monkeypatch)
+    r = await w["admin"].post(f"/api/v1/remediations/{p['id']}/execute", headers=CSRF)
+    assert r.status_code == 200, r.text
+    assert swept and swept[0] >= 1  # the sweeper reconciled the row while the write was in flight
+    flag = await _flag(w)
+    assert flag["value"] == "0"  # the write did land at the target
+    got = (await w["admin"].get(f"/api/v1/remediations/{p['id']}")).json()
+    assert got["status"] == "failed"
+    ex = got["execution"]
+    assert ex["ok"] is False and ex["uncertain"] is True
+    assert "reconciled by w-sweep" in ex["reason"]
+    assert ex["observed"] == {"value": flag["value"], "version": flag["version"]}
+    assert "state_after" not in ex  # the reconciled record was not overwritten
+    assert r.json()["status"] == "failed"  # the caller gets the row as it now stands
+    late = [
+        x
+        for x in await _audit(w, p["id"])
+        if x["action"] == "remediation.executed" and x["details"].get("phase") == "finished_late"
+    ]
+    assert len(late) == 1, "the late outcome must be kept in the audit log"
+    assert late[0]["details"]["kept_status"] == "failed"
+    assert late[0]["details"]["ok"] is True
+    assert late[0]["details"]["state_after"] == {"value": "0", "version": flag["version"]}
+
+
+async def test_late_rollback_result_does_not_overwrite_a_reconciled_row(
+    world, app_engine, monkeypatch
+):
+    """The same race for rollback(): 'rolling_back' reconciled to 'rollback_failed'."""
+    w = world
+    await _enable(w)
+    p = (await _propose(w, w["admin"])).json()
+    await (await w["login"](w["a"], "reviewer")).post(
+        f"/api/v1/remediations/{p['id']}/approve", headers=CSRF
+    )
+    done = (await w["admin"].post(f"/api/v1/remediations/{p['id']}/execute", headers=CSRF)).json()
+    assert done["status"] == "verifying" and done["execution"]["ok"] is True
+    swept = _sweep_while_target_write_in_flight(w, app_engine, monkeypatch)
+    r = await w["admin"].post(f"/api/v1/remediations/{p['id']}/rollback", headers=CSRF)
+    assert r.status_code == 200, r.text
+    assert swept and swept[0] >= 1
+    flag = await _flag(w)
+    assert flag["value"] == "0.3"  # the rollback write did land at the target
+    got = (await w["admin"].get(f"/api/v1/remediations/{p['id']}")).json()
+    assert got["status"] == "rollback_failed"
+    rb = got["rollback"]
+    assert rb["ok"] is False and rb["uncertain"] is True
+    assert "reconciled by w-sweep" in rb["reason"]
+    assert rb["observed"] == {"value": flag["value"], "version": flag["version"]}
+    assert "state_after" not in rb
+    assert got["execution"] == done["execution"]  # the execution record is untouched
+    assert r.json()["status"] == "rollback_failed"
+    late = [
+        x
+        for x in await _audit(w, p["id"])
+        if x["action"] == "remediation.rolled_back" and x["details"].get("phase") == "finished_late"
+    ]
+    assert len(late) == 1, "the late outcome must be kept in the audit log"
+    assert late[0]["details"]["kept_status"] == "rollback_failed"
+    assert late[0]["details"]["ok"] is True
+    assert late[0]["details"]["state_after"] == {"value": "0.3", "version": flag["version"]}
