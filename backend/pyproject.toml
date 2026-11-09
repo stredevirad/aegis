@@ -10,12 +10,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
-    "fastapi>=0.142,<0.143",
+    "fastapi>=0.142,<0.163",
     "uvicorn[standard]>=0.54,<0.55",
     "pydantic>=2.13,<3",
     "pydantic-settings>=2.15,<3",
     "sqlalchemy[asyncio]>=2.1,<2.2",
-    "asyncpg>=0.31,<0.32",
+    "asyncpg>=0.31,<0.33",
     "alembic>=1.20,<1.21",
     "httpx>=0.28,<0.29",
     "cryptography>=50,<51",
@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mcp = ["mcp>=2.2,<2.3"]
+mcp = ["mcp>=2.2,<2.4"]
 
 [dependency-groups]
 dev = [
@@ -36,7 +36,7 @@ dev = [
     "hypothesis>=6.168,<7",
     "respx>=0.23,<0.24",
     "mypy>=2.3,<3",
-    "ruff>=0.16,<0.17",
+    "ruff>=0.16,<0.18",
     "types-pyyaml>=6.0",
     "asyncpg-stubs>=0.31",
 ]
