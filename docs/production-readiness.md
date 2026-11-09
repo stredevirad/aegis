@@ -8,20 +8,42 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 
 | Suite | Command (from) | Result | Date |
 |---|---|---|---|
-| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 360 passed, 4 deselected, gate green | 2026-11-09 |
+| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 366 passed, 4 deselected, gate green (Phase 6) | 2026-11-09 |
 | CI on GitHub Actions (all jobs) | `.github/workflows/ci.yml`, [run 42594753903](https://github.com/stredevirad/aegis/actions/runs/42594753903) on d211838 | backend 360 passed / 0 skipped (`AEGIS_REQUIRE_DB=1`; 134 PostgreSQL tests) + mypy strict + benchmark gate; research 159; frontend 78 + build; images; gitleaks 73 commits clean; E2E 3 passed against the compose stack | 2026-11-09 |
-| Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m "db and not live"` (`backend/`) | 128 passed, 228 deselected (part of the 352 above; the live Dex test was not run) | 2026-11-09 |
-| Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 | 2026-10-02 |
+| Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m db -q` (`backend/`) | 137 passed, 2 skipped (the two `db` + `live` tests: no live services), 231 deselected (Phase 6) | 2026-11-09 |
+| Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 (Phase 6) | 2026-11-09 |
 | Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-11-09 |
-| Format / lint / types | `uv run --frozen ruff format --check .`, `ruff check .`, `mypy` (`backend/`) | clean (mypy strict: 109 files) | 2026-11-09 |
-| Frontend | `npm ci && npm run typecheck && npm run lint && npm test && npm run build` (`frontend/`) | tsc (app + e2e configs) + ESLint clean; 78 passed in 8 files; build OK (444.45 kB JS) | 2026-11-09 |
-| One-command stack from a clean Docker state | `scripts/demo-down.sh` then `scripts/demo-up.sh` (or the `.ps1` pair) | `up --build --wait` exit 0 in 72 s (warm build cache) / 27 s (`.ps1`); `/auth/config` through nginx OK; Playwright 3 passed against :8080; core memory ≈ 0.36 GB, demo profile ≈ 0.93 GB after 10 min | 2026-11-09 |
+| Format / lint / types | `uv run --frozen ruff format --check .`, `ruff check .`, `mypy` (`backend/`) | clean (mypy strict: 110 files) | 2026-11-09 |
+| Frontend | `npm run typecheck && npm run lint && npm test && npm run build` (`frontend/`) | tsc (app + e2e configs) + ESLint clean; 81 passed in 8 files; build OK (444.88 kB JS) (Phase 6) | 2026-11-09 |
+| One-command stack from a clean Docker state | `scripts/demo-down.sh` then `scripts/demo-up.sh` (or the `.ps1` pair) | Phase 6: exit 0 in 37 s (warm build cache, both images rebuilt); `E2E_BASE_URL=http://127.0.0.1:8080 npx playwright test`: 3 passed, 2 skipped (the env-gated media and GIF specs). Phase 3: 72 s / 27 s (`.ps1`); `/auth/config` through nginx OK; core memory ≈ 0.36 GB, demo profile ≈ 0.93 GB after 10 min | 2026-11-09 |
 | Browser E2E against the real backend | dev stack (`deploy/compose.dev.yaml --profile app`, `backend/scripts/dev-stack.sh`, `npm run dev`), then `npx playwright test` (`frontend/`) | 3 passed (s06 golden path, s08 abstention, s10 prompt injection), 3 consecutive green runs; zero console errors / unexpected ≥400 | 2026-11-09 |
 | Secret scan, full history | `MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" zricethezav/gitleaks:latest git /repo --redact --gitleaks-ignore-path /repo/.gitleaksignore` (repo root) | gitleaks v8.30.1, 59 commits: no leaks (3 triaged test fixtures allowlisted) | 2026-11-09 |
 
 ## Verification log
 
 Newest first. Each entry: what was run, the observed result, and what it does not show.
+
+### 2026-11-09 — Portfolio Phase 6: final fixes and polish (v1.0.1)
+
+Both remediation findings from the Phase 1 automated security review are fixed, plus small polish. Each fix's test was run against the old code first and failed for the stated reason.
+
+* **Remediation lost update** (ff31ba8). `execute()`/`rollback()` claimed the row with a compare-and-set but wrote the final status by org and id only, so a late result could overwrite a row the stuck-row sweeper had already marked `failed`/`rollback_failed`. The final write is now compare-and-set on the claimed status (`_finish`). On 0 rows the reconciled record stays, the late outcome (incl. the target state) is audited as phase `finished_late`, and the current row is returned. Tests: `test_late_execution_result_does_not_overwrite_a_reconciled_row` and `test_late_rollback_result_does_not_overwrite_a_reconciled_row` run the real sweeper while the flag write is in flight. Before the fix: `'verifying' == 'failed'` and `'rolled_back' == 'rollback_failed'` failed.
+* **Maintenance-loop fault isolation** (cb9ee49). `reconcile_stuck()` reconciles each row in `_reconcile_one` behind a per-row `except Exception` with `log.exception` (a vanished row is logged and skipped; the failed row keeps its lease and is retried after 300 s). `Worker._maintenance()` catches `Exception` with `log.exception`. Neither catches `BaseException`, so cancellation still stops the loop. Tests: `test_one_bad_stuck_row_does_not_stop_the_sweep` (a `RuntimeError` from the flag client) and `test_maintenance_loop_survives_an_unexpected_exception` both failed before the fix with the `RuntimeError` escaping. `test_maintenance_loop_still_stops_on_cancellation` passes before and after.
+* Dependabot version updates stopped (545be3c): `open-pull-requests-limit: 0` for actions, npm, uv and docker. Security updates are a repository setting (Phase 6 item 6.12).
+* Check reasons (5a73494): "supported by logs, metrics, traces" and "only metrics modality supports it" instead of Python list reprs. Benchmark and held-out output are byte-identical before and after (diffed), and `git diff --stat -- eval/` is empty. Other check reasons still contain list reprs (e.g. "dependencies ['catalog'] are also anomalous"); they were out of scope.
+* Operator UI (34dd687): the verdict headline and summary for CONFIRMED/PLAUSIBLE are worded from `root_causes` with `mechanismLabel()` ("Strongly supported: catalog — Change-induced (feature flag)"). The backend `display_label` is unchanged. There are 3 new Vitest tests; 2 of them fail on the old component.
+* README (2ff067d, f4d53da), CI comment (48a13ce). The media (f4d53da) come from a fresh `demo-down.sh` → `demo-up.sh`:
+  * The GIF now comes from `frontend/e2e/demo-gif.spec.ts` (`E2E_GIF=1`): one browser video, cut by ffmpeg 9.0.2 to the loaded s06 verdict, one citation click and the loaded s08 abstention. Result: 9.8 s, 3.53 MB, 1100×725 (ffprobe). The first attempt kept a blank frame and a "Loading your session" frame at the splice, because the video clock lags the test clock; a 1.5 s pad after each end mark fixed it.
+  * Frames checked by eye: the first frame is the s06 verdict with the new headline, and the last frame is the s08 abstention. An ffmpeg scene scan shows changes only at the click and the splice.
+  * Screenshots were regenerated. `dashboard.png` and `evidence-explorer.png` were unused and are deleted.
+* Gates, run one after another on 2026-11-09:
+  * `check.sh -m "not live"`: 366 passed, 4 deselected, gate green.
+  * `pytest -m db`: 137 passed, 2 skipped (`db` + `live`: no live services), 231 deselected.
+  * Benchmark gate: 12 correct, 3 appropriate abstentions, 0 confident-wrong.
+  * Research suite: 159 passed, 6 deselected.
+  * Frontend: typecheck + lint clean, 81 passed in 8 files, build OK.
+  * Playwright against the compose stack: 3 passed, 2 skipped (env-gated media/GIF specs). The stack was stopped afterwards.
+* What this does not show: the race is tested by forcing the interleaving inside one process (the sweeper runs inside the patched flag write). There is no multi-process or load test of it. The CI result is recorded in the snapshot table above after the push.
 
 ### 2026-11-09 — Portfolio Phase 5: README, media, docs, release
 
