@@ -1230,6 +1230,7 @@ legend {
 .layer-verdict { --layer: var(--layer-verdict); }
 .layer-finding { --layer: var(--layer-finding); }
 .layer-uncertainty { --layer: var(--layer-uncertainty); }
+.layer-nofinding { --layer: var(--layer-uncertainty); }
 .layer-ai { --layer: var(--layer-ai); border-style: dashed; border-left-style: solid; }
 .layer-hypothesis { --layer: var(--layer-hypothesis); }
 .layer-inference { --layer: var(--layer-inference); }

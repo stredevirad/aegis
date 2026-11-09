@@ -143,7 +143,9 @@ describe("verified finding layer", () => {
         onSelect={() => {}}
       />,
     );
-    const region = screen.getByRole("region", { name: /verified finding/i });
+    // An abstention is never labelled a verified finding.
+    expect(screen.queryByRole("region", { name: /verified finding/i })).not.toBeInTheDocument();
+    const region = screen.getByRole("region", { name: /no finding/i });
     expect(within(region).queryByText("checkout")).not.toBeInTheDocument();
     expect(within(region).queryByRole("button")).not.toBeInTheDocument();
     expect(within(region).getByText(/no root cause is stated/i)).toBeInTheDocument();
@@ -158,7 +160,8 @@ describe("verified finding layer", () => {
         onSelect={() => {}}
       />,
     );
-    const region = screen.getByRole("region", { name: /verified finding/i });
+    expect(screen.queryByRole("region", { name: /verified finding/i })).not.toBeInTheDocument();
+    const region = screen.getByRole("region", { name: /no finding/i });
     expect(within(region).getByText(/nothing was found in what was checked/i)).toBeInTheDocument();
   });
 });

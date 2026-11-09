@@ -34,11 +34,12 @@ import {
 //   UNCERTAINTY        — next checks, coverage gaps, failed / not-evaluable checks, reasons.
 // The AI assessment (if any) is shown apart from the deterministic verdict; it can only lower it.
 
-type LayerKind = "verdict" | "finding" | "uncertainty" | "ai" | "hypothesis" | "inference" | "fact";
+type LayerKind = "verdict" | "finding" | "nofinding" | "uncertainty" | "ai" | "hypothesis" | "inference" | "fact";
 
 const KICKERS: Record<LayerKind, string> = {
   verdict: "VERDICT",
   finding: "VERIFIED FINDING",
+  nofinding: "NO FINDING",
   uncertainty: "UNCERTAINTY",
   ai: "AI ASSESSMENT",
   hypothesis: "HYPOTHESIS",
@@ -184,7 +185,7 @@ export function FindingsLayer({
   const p = presentClassification(investigation.classification);
   if (!p.presentsFindings) {
     return (
-      <Layer kind="finding" title="Root cause">
+      <Layer kind="nofinding" title="Root cause">
         <p className="no-finding">
           {p.tone === "nothing"
             ? "No root cause is stated: nothing was found in what was checked. Review what was not checked under Uncertainty."
