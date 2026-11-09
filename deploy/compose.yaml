@@ -148,7 +148,8 @@ services:
     image: aegis-web:dev
     ports: ["127.0.0.1:8080:8080"]
     depends_on:
-      api: {condition: service_healthy}   # nginx resolves the api upstream at startup
+      # restart: compose restarts web whenever it recreates api (nginx also re-resolves `api`).
+      api: {condition: service_healthy, restart: true}
       seed: {condition: service_completed_successfully}
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]

@@ -28,12 +28,12 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 - [x] 7. Checkpoint `checkpoint-p2`
 
 ## Phase 3: One-command stack
-- [ ] 1. `backend/Dockerfile` (pinned python/uv, non-root, scenarios) + `.dockerignore`
-- [ ] 2. `deploy/compose.yaml` core services (postgres, init, api, worker, seed, web on :8080) + `create-api-key` CLI + demo-profile `init-demo` wiring (connectors, integrations, auto-investigate)
-- [ ] 3. `scripts/demo-{up,fault,down}.{ps1,sh}`; `.env.example` placement
-- [ ] 4. Clean-state verification: timings, `docker stats` memory, nginx `/auth/config`, Playwright against :8080
-- [ ] 5. Live path (demo profile): fault → alert → incident → live investigation; record the result as observed
-- [ ] 6. Checkpoint `checkpoint-p3`
+- [x] 1. `backend/Dockerfile` (pinned python/uv, non-root, scenarios) + `.dockerignore` — ffef2ac; python:3.13.16-slim + uv 0.12.15 (both verified with `docker manifest inspect`); 338 MB; uid 10001; scenarios via named build context `scenarios`
+- [x] 2. `deploy/compose.yaml` core services (postgres, init, api, worker, seed, web on :8080) + `create-api-key` CLI + demo-profile `init-demo` wiring (connectors, integrations, auto-investigate) — ffef2ac, 45c3db6; `init-demo` (API script) created the 3 integrations and set `default_source: live`. Note: `up --wait` does not wait for `init-demo` (one-shot, no health check); it finishes a few seconds after
+- [x] 3. `scripts/demo-{up,fault,down}.{ps1,sh}`; `.env.example` placement — 45c3db6; PS 5.1 needs `$ErrorActionPreference = "Continue"` around docker (stderr progress became terminating errors when redirected); root `.env.example` kept (referenced by research docs), `deploy/.env.example` added
+- [x] 4. Clean-state verification: timings, `docker stats` memory, nginx `/auth/config`, Playwright against :8080 — `down -v` → `up --build --wait` exit 0 in 72 s (bash, warm build cache) and `demo-down.ps1` → `demo-up.ps1` exit 0 in 27 s; `curl /auth/config` → `{"mode":"dev","dev_login":true}`; seeded verdicts match; Playwright 3 passed against :8080 (twice); core memory ≈ 0.33–0.36 GB; with demo profile ≈ 0.74 GB at start; key files 0644 uid 10001
+- [x] 5. Live path (demo profile): fault → alert → incident → live investigation; record the result as observed — PARTIAL vs the hoped-for CONFIRMED: `demo-up.sh --live` (36 s) → 3-min wait → `demo-fault.sh` 09:25:23 → Alertmanager → 2 incidents (catalog 09:26:19, frontend 09:26:09) → 2 automatic live investigations, ~1 s each: catalog → **PLAUSIBLE/moderate, root cause `catalog`, `change_induced:feature_flag`** (reason: "no valid baseline was available": the automatic window uses a 60-min baseline, but the stack was ~5 min old); frontend → INSUFFICIENT (catalog the leading candidate, not established). Found and fixed: nginx kept proxying to a recreated `api` (502) → `resolve` + `web` restart-on-api
+- [x] 6. Checkpoint `checkpoint-p3`
 
 ## Phase 4: CI
 - [ ] 0. `AEGIS_REQUIRE_DB=1` makes an unreachable DB fail instead of skip (+test)

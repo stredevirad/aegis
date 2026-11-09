@@ -16,7 +16,7 @@ step). Full brief: `.claude/MASTER_PROMPT.md` (gitignored, owner's machine only)
 - `src/`, `tests/`, `scripts/`, `config/`: **frozen research layer** (tags `v1.0-research-complete`,
   `v1.1-research-freeze`). Don't change it.
 - `eval/`: synthetic scenarios (`eval/scenarios`), hashed held-out set (`eval/heldout`), results.
-- `deploy/`: `compose.dev.yaml` (test/dev Postgres, Dex), `compose.yaml` (demo telemetry profile).
+- `deploy/`: `compose.dev.yaml` (test/dev Postgres, Dex), `compose.yaml` (one-command stack + `demo` telemetry profile).
 - `demo/`: tiny instrumented demo services used by the demo profile.
 - `docs/`: ledger, roadmap, architecture, ADRs (`docs/decisions/`), councils (`docs/councils/`).
 
@@ -26,6 +26,12 @@ step). Full brief: `.claude/MASTER_PROMPT.md` (gitignored, owner's machine only)
 - Benchmark: `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate`
 - Research (repo root): `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration" -q`
 - Frontend (from `frontend/`): `npm run typecheck && npm run lint && npm test && npm run build`; E2E: `npx playwright test`
+
+## One-command demo stack (containers)
+- `scripts/demo-up.sh` / `scripts/demo-up.ps1` (add `--live` / `-Live` for the telemetry demo) →
+  http://localhost:8080, dev login `admin@example.com`; `scripts/demo-fault.*`; `scripts/demo-down.*`.
+- E2E against it: `cd frontend && E2E_BASE_URL=http://127.0.0.1:8080 npx playwright test`.
+- Plain `docker build` of the backend needs `--build-context scenarios=eval/scenarios`.
 
 ## Dev stack
 - `docker compose -f deploy/compose.dev.yaml up -d --wait` (test PG :55432) · `--profile app` (dev PG :55433) · `--profile auth` (Dex :5556)
