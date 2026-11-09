@@ -6,17 +6,17 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 
 ## Phase 1: Consolidate, secure, first push
 - [x] 1. Backup bundle + uncommitted patch + file copies; repo-local identity — `~/aegis-backups/aegis-2026-11-09.bundle` (verify OK), `uncommitted-2026-11-09.patch`, `worktree-uncommitted-2026-11-09.patch`, `files/` (3 migration + 2 RcaView files); identity = Joshua Herbert Japheth <joshuajapheth14@gmail.com>
-- [x] 2. Baseline (2026-11-09, Windows 11, PG 16.15 container) — backend `check.sh -m "not live"`: ruff/mypy strict (109 files) clean, 352 passed / 4 deselected, benchmark gate OK; research suite: 159 passed / 6 deselected
+- [x] 2. Baseline (2026-11-09, Windows 11, PG 16.15 container) — backend `check.sh -m "not live"`: ruff/mypy strict (109 files) clean, 352 passed / 4 deselected, benchmark gate OK; research suite: 159 passed / 6 deselected; DB subset `pytest -m "db and not live"`: 128 passed
 - [x] 3. `.gitignore` additions; `.gitattributes` += `*.conf`, `.dockerignore` LF — 3d69820
 - [x] 4. Commit Council-D backend follow-ups + `docs/councils/council-D-note.md` — 8b5fbad
-- [ ] 5. Merge frontend branch, recover the 2 RcaView files, frontend gate (75 tests), remove worktree, delete branch
-- [ ] 6. Rename `production/platform` → `main` (leave `master` + `feature/mcp-interoperability` local; both are ancestors)
-- [ ] 7. `.mailmap`, MIT `LICENSE`, pyproject licence, roadmap M0 licence row → DONE
-- [ ] 8. gitleaks over full history, triage, `.gitleaksignore`, clean re-run
-- [ ] 9. Remote `origin` → `stredevirad/aegis` (must exist and be private); `gh` has the `workflow` scope
-- [ ] 10. Push `main` + both research tags; verify private + default branch `main`
-- [ ] 11. `CLAUDE.md`, this file finalised, council P1/P2 notes
-- [ ] 12. Checkpoint tag `checkpoint-p1`, phase report
+- [x] 5. Merge frontend branch, recover the 2 RcaView files, frontend gate, remove worktree, delete branch — merge 4d3afe5 (conflict-free), files `cmp`-identical to backup, 20ec99a; `npm ci`, tsc + ESLint clean, Vitest 75 passed in 7 files, build OK (444.81 kB JS); `git worktree remove` OK; `git branch -d` OK (merged)
+- [x] 6. Rename `production/platform` → `main` (`master` + `feature/mcp-interoperability` stay local; both are ancestors) — `git branch -vv`
+- [x] 7. `.mailmap`, MIT `LICENSE`, pyproject licence, roadmap M0 licence row → DONE — f47fd72; `git shortlog -sne --all` shows 1 identity (59 commits); `uv lock --check` + `uv sync --frozen` OK
+- [x] 8. gitleaks over full history, triage, `.gitleaksignore`, clean re-run — gitleaks v8.30.1, 59 commits (all refs): 3 findings, all test fixtures (fake bearer token, jwt.io sample JWT, 20-char dummy PEM); allowlisted in 20fe630; re-run: "no leaks found"
+- [x] 9. Remote `origin` → `stredevirad/aegis`; `gh` scopes include `workflow` — repo existed, PRIVATE, empty
+- [x] 10. Push `main` + both research tags; verify — `gh repo view`: `{"defaultBranchRef":{"name":"main"},"visibility":"PRIVATE"}`; `git status -sb`: `## main...origin/main`
+- [x] 11. `CLAUDE.md`, this file finalised, council P1/P2 notes
+- [x] 12. Checkpoint tag `checkpoint-p1` (annotated, on the commit that adds this line), phase report
 
 ## Phase 2: Operator UI against the real backend
 - [ ] 1. Dev stack running (compose `--profile app`, `dev-stack.sh`, Vite 5173)
@@ -73,6 +73,11 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 - S2: public benchmark (RCAEval RE2-OB)
 - S3: minimal two-person remediation panel
 - S4: read-only Aegis MCP server
+
+## Open follow-ups (not in any phase; owner decides)
+- Automated security review (2026-11-09) of 8b5fbad, `backend/aegis/remediation/`. Not fixed in Phase 1 (scope rule 9); both judged plausible but low-likelihood:
+  1. `RemediationService.execute`/`rollback` write the final status unconditionally (no `WHERE status='executing'`/`'rolling_back'` compare-and-set). If `reconcile_stuck()` (300 s staleness) marks a row failed while a slow flag request is still in flight, the late final write would overwrite `failed`. That needs a request in flight longer than 300 s, which egress timeouts make unlikely. Fix: CAS the final write and treat 0 rows as "already reconciled".
+  2. `reconcile_stuck()` uses `.one()` and catches only `FlagError`/`RemediationError`, and the worker's `_maintenance` loop catches only `DBAPIError`/`OSError`. An unexpected exception for one row (e.g. the proposal/action row missing) would end the maintenance task, and with it lease reaping, until the worker restarts. Fix: per-row `except Exception` with `log.exception` + `.first()`, and a broader catch in `_maintenance`.
 
 ## Facts that differ from the 2026-11-08 snapshot
 - An extra local branch, `feature/mcp-interoperability`, points at dc7c032 (= `v1.1-research-freeze`), an ancestor of `main`. It stays local and unpushed.

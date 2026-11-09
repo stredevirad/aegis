@@ -2,21 +2,38 @@
 
 This is the engineering control document behind [`production-roadmap.md`](production-roadmap.md). A row is `VERIFIED` only when the command in the row was executed and its output is recorded here, with the date. `PARTIAL` states what works and what does not; `BLOCKED` names the external dependency; `PLANNED` means not implemented. Nothing here is inferred from documentation.
 
-Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv`, Python ≥ 3.12), PostgreSQL 16.15 from `deploy/compose.dev.yaml`, Docker Desktop 28.3.
+Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv`, Python ≥ 3.12), PostgreSQL 16.15 from `deploy/compose.dev.yaml`, Docker Desktop 28.3. From 2026-11-09: Docker Engine 29.9.2, Node 26.13 / npm 11.20, uv 0.12.15.
 
 ## Current verification snapshot
 
 | Suite | Command (from) | Result | Date |
 |---|---|---|---|
-| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 350 passed, gate green | 2026-10-02 |
-| Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml --profile auth up -d --wait` then `uv run --frozen pytest -m db` (`backend/`) | 99 passed (incl. 1 live test against Dex) | 2026-10-02 |
+| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 352 passed, 4 deselected, gate green | 2026-11-09 |
+| Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m "db and not live"` (`backend/`) | 128 passed, 228 deselected (part of the 352 above; the live Dex test was not run) | 2026-11-09 |
 | Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 | 2026-10-02 |
-| Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-10-02 |
-| Format / lint / types | `uv run --frozen ruff format --check .`, `ruff check .`, `mypy` (`backend/`) | clean | 2026-10-02 |
+| Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-11-09 |
+| Format / lint / types | `uv run --frozen ruff format --check .`, `ruff check .`, `mypy` (`backend/`) | clean (mypy strict: 109 files) | 2026-11-09 |
+| Frontend | `npm ci && npm run typecheck && npm run lint && npm test && npm run build` (`frontend/`) | tsc + ESLint clean; 75 passed in 7 files; build OK (444.81 kB JS) | 2026-11-09 |
+| Secret scan, full history | `MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" zricethezav/gitleaks:latest git /repo --redact --gitleaks-ignore-path /repo/.gitleaksignore` (repo root) | gitleaks v8.30.1, 59 commits: no leaks (3 triaged test fixtures allowlisted) | 2026-11-09 |
 
 ## Verification log
 
 Newest first. Each entry: what was run, the observed result, and what it does not show.
+
+### 2026-11-09 — Portfolio Phase 1: consolidate, secure, first push
+
+Plan: `docs/PORTFOLIO_PROGRESS.md` (portfolio re-scope, [Council P1](councils/council-P1-portfolio-scope.md)).
+
+* Backup before any change: `git bundle create ~/aegis-backups/aegis-2026-11-09.bundle --all` → `git bundle verify` OK; the uncommitted backend diff, the 3 untracked `0008_remediation_sweep*` files and the 2 uncommitted worktree files were copied to `~/aegis-backups/` (outside the repo).
+* Baseline before changes: `backend/scripts/check.sh -m "not live"` → ruff format/lint clean, mypy strict clean (109 files), **352 passed, 4 deselected**, benchmark gate green (2 min 43 s). Research suite → **159 passed, 6 deselected**. DB subset `pytest -m "db and not live"` → **128 passed** (included in the 352).
+* Committed the owner's Council D follow-ups (8b5fbad): per-integration LLM circuit breaker and `reconcile_stuck()` + migration 0008. See [council-D-note.md](councils/council-D-note.md). An automated security review flagged two low-likelihood robustness gaps in this code (unconditional final status write; maintenance loop stops on an unexpected exception). They're recorded under "Open follow-ups" in `docs/PORTFOLIO_PROGRESS.md` and not fixed here.
+* Frontend recovered: `git merge --no-ff worktree-agent-a066710032934483b` (4d3afe5, conflict-free) plus the 2 uncommitted worktree files (20ec99a, byte-identical to the backup). `npm ci && npm run typecheck && npm run lint && npm test && npm run build` → tsc and ESLint clean, **75 passed in 7 files**, build OK (444.81 kB JS). Worktree removed; branch deleted with `git branch -d` (merged).
+* Branch `production/platform` renamed `main`. Local `master` (= `v1.0-research-complete`) and `feature/mcp-interoperability` (= `v1.1-research-freeze`, dc7c032) are ancestors and stay unpushed.
+* Licence: MIT `LICENSE` (© 2026 Joshua Herbert Japheth), `backend/pyproject.toml` `license = { text = "MIT" }`; `uv lock --check` OK. `.mailmap` maps the 23 placeholder `stredi` commits and the `stredevirad` commits to the owner. `git shortlog -sne --all` shows one identity. GitHub ignores `.mailmap`, and history was not rewritten.
+* Secret scan: gitleaks v8.30.1 over full history (59 commits, all refs) → 3 findings, all test fixtures (a fake bearer token in `tests/api/test_integrations.py`; the jwt.io sample JWT and a 20-character dummy PEM block in `tests/test_redact.py`). Allowlisted by fingerprint in `.gitleaksignore` with a comment each; re-run → **no leaks found**.
+* Remote: `stredevirad/aegis` existed, PRIVATE and empty. `git push -u origin main` plus both research tags pushed. `gh repo view --json defaultBranchRef,visibility` → `main`, `PRIVATE`.
+
+Does not show: anything about deployability (no backend image or full compose stack yet), CI, or the UI against the real backend. Those are portfolio Phases 2–4.
 
 ### 2026-10-02 — M4 egress/collection, M3 AI adjudication, M6 remediation core
 
@@ -92,11 +109,11 @@ What this does **not** show: OIDC login (next step; dev login and API keys only 
 
 | Milestone | Status | Evidence |
 |---|---|---|
-| M0 audit, decisions, research preservation | DONE | roadmap; research suite 159 passed |
+| M0 audit, decisions, research preservation | DONE | roadmap; research suite 159 passed; MIT licence added 2026-11-09 |
 | M1 pure RCA core + benchmark gate | DONE (LLM-free) | core tests; benchmark gate |
 | M2 persistence, jobs, API, auth, tenancy, audit, ingestion | DONE | schema 0001–0004, queue, worker, API, ingestion, OIDC (fake IdP + live Dex), API keys, RBAC, CLI — see log |
 | M3 LLM adjudication | PARTIAL | adapters, validator, policy, slots, records done; live OpenAI/Anthropic blocked (no credentials); LLM benchmark M10 |
 | M4 live integrations | PARTIAL | registry, egress, Prometheus/Jaeger/Loki/OpenSearch, integrations API, live demo RCA; Tempo/Kubernetes planned |
-| M5 web application | IN PROGRESS | being built in a separate worktree |
+| M5 web application | PARTIAL | merged into `main` 2026-11-09 (4d3afe5, 20ec99a); 75 unit tests green; E2E against the real backend is portfolio Phase 2 |
 | M6 remediation and notifications | PARTIAL | remediation lifecycle done and tested; live verification and notifications pending |
 | M7–M11 | PLANNED | — |
