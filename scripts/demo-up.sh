@@ -3,7 +3,7 @@
 #
 #   scripts/demo-up.sh          Aegis only: http://localhost:8080 (about 0.4 GB of RAM)
 #   scripts/demo-up.sh --live   + the live telemetry demo (instrumented services, Prometheus,
-#                                 Jaeger, Loki, Alertmanager, flag service; about 2 GB more)
+#                                 Jaeger, Loki, Alertmanager, flag service; ~1 GB in total)
 #
 # DEMO MODE: development login and publicly known demo secrets; localhost only.
 set -euo pipefail

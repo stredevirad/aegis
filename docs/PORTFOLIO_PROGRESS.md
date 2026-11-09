@@ -74,6 +74,13 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 - S3: minimal two-person remediation panel
 - S4: read-only Aegis MCP server
 
+## Post-review fixes (2026-11-09, final Phase 5 commit)
+- README / demo script: the s10 claim now says injected instructions are treated as data and the verdict still names `catalog` in that scenario, not that injection "can't change the verdict" (forged telemetry can mislead the checks; see Limitations). The v1.0.0 tag keeps the older wording; `main` is corrected.
+- Windows quickstart: `powershell -ExecutionPolicy Bypass -File scripts\demo-up.ps1`. The default client policy (Restricted) blocks unsigned scripts; this machine has CurrentUser RemoteSigned.
+- CLAUDE.md repo map: `scripts/demo-*` are product scripts; the other `scripts/*` are frozen research.
+- Root `.env.example` marked research-era; it points to `deploy/.env.example`.
+- Live-demo memory wording aligned with the measurement (~1 GB in total).
+
 ## Open follow-ups (not in any phase; owner decides)
 - Automated security review (2026-11-09) of 8b5fbad, `backend/aegis/remediation/`. Not fixed in Phase 1 (scope rule 9); both judged plausible but low-likelihood:
   1. `RemediationService.execute`/`rollback` write the final status unconditionally (no `WHERE status='executing'`/`'rolling_back'` compare-and-set). If `reconcile_stuck()` (300 s staleness) marks a row `failed`/`rollback_failed` while a slow flag request is still in flight, the late final write would overwrite that status. That needs a request in flight longer than 300 s, which egress timeouts make unlikely. Fix: CAS the final write and treat 0 rows as "already reconciled".

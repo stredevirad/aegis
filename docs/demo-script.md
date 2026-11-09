@@ -5,7 +5,7 @@ A step-by-step walkthrough for showing Aegis to an interviewer or reviewer, usin
 ## Before the demo (once)
 
 ```bash
-scripts/demo-up.sh                 # Windows: scripts\demo-up.ps1  →  http://localhost:8080
+scripts/demo-up.sh                 # Windows: powershell -ExecutionPolicy Bypass -File scripts\demo-up.ps1  →  http://localhost:8080
 ```
 
 To also show the live path, start with `scripts/demo-up.sh --live` at least 3 minutes before the demo, so the services have some history. Close other heavy applications; the live profile uses about 1 GB.
@@ -28,9 +28,9 @@ To also show the live path, start with `scripts/demo-up.sh --live` at least 3 mi
 
 1. Incidents → "Frontend errors rising (edge metrics only)" → open its investigation.
 2. **Not enough evidence**, **NO FINDING**, and concrete **next checks** (what frontend depends on, failing traces, recent changes), plus the coverage gaps that caused the abstention.
-3. Incidents → "Frontend 5xx spike with suspicious error log messages". The logs contain injected text claiming `payments` is the root cause. The verdict still names **catalog**, and in the evidence list the injected text is shown as plain data.
+3. Incidents → "Frontend 5xx spike with suspicious error log messages". The logs contain injected text claiming `payments` is the root cause. It's treated as data: it shows up as an ordinary error-log signature, rendered as plain text, and in this scenario the verdict still names **catalog**.
 
-> "Abstention is a first-class answer. Injected text in telemetry is data, never instructions."
+> "Abstention is a first-class answer. Injected text in telemetry is data, never instructions. Forged telemetry could still mislead the checks; the guarantee is 'never more confident than the data'."
 
 ## 4. The live path (optional, 90 s; needs `--live`)
 

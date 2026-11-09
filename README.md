@@ -25,7 +25,7 @@ The one-command demo seeds four synthetic incidents (`aegis admin seed-demo`). T
 |---|---|---|---|
 | Feature flag breaks `catalog` (s06) | **CONFIRMED** "Strongly supported" | strong | Root cause `catalog`, change-induced (feature flag). Six checks pass; the decisive ones cite evidence (e.g. the flag change 0.5 min before onset). Temporal precedence is a tie, so it's not evaluable. |
 | Real `catalog` failure plus a noisy, unrelated batch job (s09) | PLAUSIBLE "Likely cause" | moderate | Root cause `catalog`, not the decoy. |
-| `catalog` failure while frontend logs carry injected instructions claiming `payments` is at fault (s10) | PLAUSIBLE "Likely cause" | moderate | Root cause `catalog`. The injected text is rendered as inert data and can't change the verdict. |
+| `catalog` failure while frontend logs carry injected instructions claiming `payments` is at fault (s10) | PLAUSIBLE "Likely cause" | moderate | Root cause `catalog`. The injected instructions are treated as data, not commands: they're counted as an ordinary error-log signature and rendered as inert text, and the verdict still names `catalog`. |
 | Only edge metrics available (s08) | **INSUFFICIENT** "Not enough evidence" | none | **No root cause named.** Next checks: find out what frontend depends on, inspect failing traces, check recent changes. |
 
 Reproduce: [`backend/tests/db/test_demo_seed.py`](backend/tests/db/test_demo_seed.py) asserts these verdicts through the real worker; the E2E suite checks the s06, s08 and s10 pages in a browser.
@@ -40,7 +40,7 @@ Reproduce: [`backend/tests/db/test_demo_seed.py`](backend/tests/db/test_demo_see
 
 ```bash
 git clone https://github.com/stredevirad/aegis.git && cd aegis
-scripts/demo-up.sh            # Windows PowerShell: scripts\demo-up.ps1
+scripts/demo-up.sh            # Windows: powershell -ExecutionPolicy Bypass -File scripts\demo-up.ps1
 ```
 
 1. Open **http://localhost:8080** and sign in with **`admin@example.com`** (development login, no password).
@@ -48,9 +48,9 @@ scripts/demo-up.sh            # Windows PowerShell: scripts\demo-up.ps1
 3. In the verdict, click any evidence ID (e.g. `ev-change-…`) to jump to the cited evidence, or open the **Evidence explorer**.
 4. To investigate something yourself: **Incidents → New incident → Investigate**, pick a scenario such as `s06-feature-flag-failure`, then **Start investigation**.
 
-**Live telemetry (optional, about 2 GB more):** `scripts/demo-up.sh --live` also starts four small instrumented services, an OpenTelemetry Collector, Prometheus, Jaeger, Loki, Alertmanager and a flag service. Wait about 3 minutes, then run `scripts/demo-fault.sh` to break `catalog` through a feature flag. Within about a minute, Prometheus alerts, Alertmanager posts to Aegis, an incident opens and is investigated automatically from live telemetry. Undo it with `scripts/demo-fault.sh --reset`.
+**Live telemetry (optional, ~1 GB in total, measured):** `scripts/demo-up.sh --live` also starts four small instrumented services, an OpenTelemetry Collector, Prometheus, Jaeger, Loki, Alertmanager and a flag service. Wait about 3 minutes, then run `scripts/demo-fault.sh` to break `catalog` through a feature flag. Within about a minute, Prometheus alerts, Alertmanager posts to Aegis, an incident opens and is investigated automatically from live telemetry. Undo it with `scripts/demo-fault.sh --reset`. On Windows, run the `.ps1` scripts the same way as `demo-up.ps1` (`-Live`, `-Reset`). The default PowerShell execution policy blocks unsigned scripts, hence `-ExecutionPolicy Bypass`.
 
-**Stop:** `scripts/demo-down.sh` (or `.ps1`) removes the containers, network and volumes (database, demo keys). The built `aegis-*:dev` images are kept for a faster next start; remove them with `docker image rm aegis-backend:dev aegis-web:dev aegis-demo:dev`.
+**Stop:** `scripts/demo-down.sh` (Windows: `powershell -ExecutionPolicy Bypass -File scripts\demo-down.ps1`) removes the containers, network and volumes (database, demo keys). The built `aegis-*:dev` images are kept for a faster next start; remove them with `docker image rm aegis-backend:dev aegis-web:dev aegis-demo:dev`.
 
 > **DEMO MODE.** The stack runs the API in its development profile, with the email-only development login and publicly known demo secrets ([`deploy/compose.yaml`](deploy/compose.yaml)). Keep it on localhost. The production profile refuses to start like this: it requires OIDC, HTTPS, secure cookies and real secrets ([`backend/aegis/config.py`](backend/aegis/config.py)).
 

@@ -13,8 +13,9 @@ step). Full brief: `.claude/MASTER_PROMPT.md` (gitignored, owner's machine only)
   egress, LLM adjudication, remediation, audit, CLI `aegis`). Tests in `backend/tests/`.
 - `frontend/`: React 19 + TS 6 + Vite 8 operator UI (TanStack Query, React Router, Vitest, ESLint 10);
   nginx image via `frontend/Dockerfile`.
-- `src/`, `tests/`, `scripts/`, `config/`: **frozen research layer** (tags `v1.0-research-complete`,
-  `v1.1-research-freeze`). Don't change it.
+- `scripts/demo-*.{sh,ps1}`: the one-command demo stack (product).
+- `src/`, `tests/`, `config/` and the other `scripts/*`: **frozen research layer** (tags
+  `v1.0-research-complete`, `v1.1-research-freeze`). Don't change it.
 - `eval/`: synthetic scenarios (`eval/scenarios`), hashed held-out set (`eval/heldout`), results.
 - `deploy/`: `compose.dev.yaml` (test/dev Postgres, Dex), `compose.yaml` (one-command stack + `demo` telemetry profile).
 - `demo/`: tiny instrumented demo services used by the demo profile.

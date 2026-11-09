@@ -2,7 +2,7 @@
 #
 #   scripts\demo-up.ps1          Aegis only: http://localhost:8080 (about 0.4 GB of RAM)
 #   scripts\demo-up.ps1 -Live    + the live telemetry demo (instrumented services, Prometheus,
-#                                  Jaeger, Loki, Alertmanager, flag service; about 2 GB more)
+#                                  Jaeger, Loki, Alertmanager, flag service; ~1 GB in total)
 #
 # DEMO MODE: development login and publicly known demo secrets; localhost only.
 param([switch]$Live)
