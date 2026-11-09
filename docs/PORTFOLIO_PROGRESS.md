@@ -36,12 +36,12 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 - [x] 6. Checkpoint `checkpoint-p3`
 
 ## Phase 4: CI
-- [ ] 0. `AEGIS_REQUIRE_DB=1` makes an unreachable DB fail instead of skip (+test)
-- [ ] 1. `.github/workflows/ci.yml`: backend, research, frontend, images, secrets, e2e
-- [ ] 2. `.github/dependabot.yml`
-- [ ] 3. Push, watch, fix until green; record run URL + passed/skipped counts
-- [ ] 4. Badges (if not deferred to Phase 5)
-- [ ] 5. Checkpoint `checkpoint-p4`
+- [x] 0. `AEGIS_REQUIRE_DB=1` makes an unreachable DB fail instead of skip (+test) — 98cdce1~1; with Postgres stopped: default 3 skipped, `AEGIS_REQUIRE_DB=1` 3 errors; local gate with it: 360 passed
+- [x] 1. `.github/workflows/ci.yml`: backend, research, frontend, images, secrets, e2e — 98cdce1; first run failed only on `astral-sh/setup-uv@v10` (no such tag; pinned v10.3.3, d211838)
+- [x] 2. `.github/dependabot.yml` — actions, npm, uv, docker; weekly, grouped, ≤2 open PRs each (first scans started on push)
+- [x] 3. Push, watch, fix until green; record run URL + passed/skipped counts — https://github.com/stredevirad/aegis/actions/runs/42594753903 (d211838): all 6 jobs green; backend 360 passed / 4 deselected / 0 skipped (134 of them PostgreSQL tests), research 159 passed, frontend 78 passed, E2E 3 passed, gitleaks 73 commits no leaks
+- [x] 4. Badges — deferred to the Phase 5 README rewrite (as the plan allows)
+- [x] 5. Checkpoint `checkpoint-p4`
 
 ## Phase 5: README, media, truthful docs, release
 - [ ] 1. GIF + 4 screenshots in `docs/media/`

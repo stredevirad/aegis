@@ -8,7 +8,8 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 
 | Suite | Command (from) | Result | Date |
 |---|---|---|---|
-| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 356 passed, 4 deselected, gate green | 2026-11-09 |
+| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 360 passed, 4 deselected, gate green | 2026-11-09 |
+| CI on GitHub Actions (all jobs) | `.github/workflows/ci.yml`, [run 42594753903](https://github.com/stredevirad/aegis/actions/runs/42594753903) on d211838 | backend 360 passed / 0 skipped (`AEGIS_REQUIRE_DB=1`; 134 PostgreSQL tests) + mypy strict + benchmark gate; research 159; frontend 78 + build; images; gitleaks 73 commits clean; E2E 3 passed against the compose stack | 2026-11-09 |
 | Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m "db and not live"` (`backend/`) | 128 passed, 228 deselected (part of the 352 above; the live Dex test was not run) | 2026-11-09 |
 | Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 | 2026-10-02 |
 | Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-11-09 |
@@ -21,6 +22,17 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 ## Verification log
 
 Newest first. Each entry: what was run, the observed result, and what it does not show.
+
+### 2026-11-09 — Portfolio Phase 4: CI
+
+* `backend/tests/conftest.py`: an unreachable PostgreSQL used to skip every DB test, so a gate could pass having run none of them. With `AEGIS_REQUIRE_DB=1` it now fails. Checked with the database stopped: `tests/db/test_cli.py` gave 3 skipped by default and 3 errors with the variable set. `tests/test_require_db.py` covers both modes.
+* `.github/workflows/ci.yml`: backend (Postgres 16.15 service, `AEGIS_REQUIRE_DB=1`, `scripts/check.sh -m "not live" -rs`, benchmark JSON artifact); research; frontend (Node 24); images (backend with the `scenarios` build context, frontend, compose config for both profiles); gitleaks v8.30.1 over full history; and E2E (compose stack plus Playwright on :8080; push to main or manual dispatch). `.github/dependabot.yml` covers actions, npm, uv and docker.
+* First run (42594364326): backend and research failed at setup, because `astral-sh/setup-uv@v10` doesn't exist (the action publishes no moving v10 tag). It's pinned to `v10.3.3`.
+* **Green run [42594753903](https://github.com/stredevirad/aegis/actions/runs/42594753903) (d211838), all 6 jobs:**
+  * backend: **360 passed, 4 deselected, 0 skipped**. 134 of the 360 are PostgreSQL tests (`pytest -m "db and not live" --collect-only` → 134), so all of them ran in CI. ruff and mypy strict (110 files) clean; benchmark gate green.
+  * research 159 passed (6 deselected); frontend 78 passed in 8 files plus the build; gitleaks: 73 commits, no leaks; E2E: 3 passed (14.0 s) against `docker compose up --build --wait` on a GitHub runner.
+
+Does not show: anything about production deployment. The E2E job uses the DEMO MODE stack.
 
 ### 2026-11-09 — Portfolio Phase 3: one-command stack
 
