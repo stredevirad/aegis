@@ -1,0 +1,7 @@
+# gitleaks allowlist (fingerprints). Every entry is a dev/test fixture, triaged 2026-11-09 with gitleaks v8.30.1.
+# Fake bearer token "tok-SECRET-123" used to test that stored integration credentials are never echoed back.
+45fbf3fce69643276d86b298834042840e55b16f:backend/tests/api/test_integrations.py:generic-api-key:148
+# Redaction test vector: the public jwt.io sample JWT (payload {"sub":"1234567890"}).
+1c9b0fbeb9fceef4423232aab296f775918ed208:backend/tests/test_redact.py:jwt:48
+# Redaction test vector: fake RSA PEM block with a 20-character dummy body, not a key.
+1c9b0fbeb9fceef4423232aab296f775918ed208:backend/tests/test_redact.py:private-key:60
