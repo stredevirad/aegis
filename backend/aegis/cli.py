@@ -8,6 +8,7 @@
     aegis admin invite --org S --email E --role R
     aegis admin set-user-disabled --email E (--disabled | --enabled)
     aegis admin seed-demo --org S            synthetic demo incidents + queued investigations
+    aegis admin create-api-key --org S --scope SCOPE [--scope ...] --out FILE [--name N] [--days D]
     aegis audit verify --org S
 
 Operator commands connect with ``AEGIS_MIGRATION_DATABASE_URL`` (the owning role): they act
@@ -25,6 +26,7 @@ import signal
 import sys
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import asyncpg
@@ -208,6 +210,73 @@ async def set_user_disabled(dsn: str, email: str, disabled: bool) -> int:
         await conn.close()
 
 
+API_KEY_SCOPES = ("ingest:alerts", "ingest:changes", "read")
+
+
+def _write_secret_file(path: Path, secret: str) -> None:
+    """Write atomically (temp file + rename), world-readable 0644: the demo consumers
+    (Alertmanager as ``nobody``, the flag service as uid 10001) run as other users and get the
+    volume read-only."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(secret + "\n", encoding="utf-8")
+    tmp.chmod(0o644)
+    tmp.replace(path)
+
+
+async def create_api_key(
+    settings: Settings, slug: str, name: str, scopes: list[str], days: int, out: Path
+) -> str:
+    """Mint an organization API key for a machine client and write its secret to ``out``.
+
+    The secret is never printed or logged; the return value is the public key prefix. Keys are
+    peppered with ``AEGIS_SECRET_KEY``, so this command must run with the API's value."""
+    from sqlalchemy import text
+
+    from aegis import audit
+    from aegis.audit import Action, Actor
+    from aegis.auth import apikeys
+    from aegis.db.engine import make_engine, system_tx, tenant_tx
+
+    url = _owner_dsn(settings).replace("postgresql://", "postgresql+asyncpg://", 1)
+    engine = make_engine(settings, url)
+    try:
+        async with system_tx(engine) as c:
+            org_id = (
+                await c.execute(text("SELECT aegis.org_id_for_slug(:s)"), {"s": slug})
+            ).scalar_one_or_none()
+        if org_id is None:
+            raise SystemExit(f"no organization {slug!r}")
+        async with tenant_tx(engine, org_id) as c:
+            secret, row = await apikeys.create(
+                c,
+                settings,
+                org_id=org_id,
+                name=name,
+                scopes=scopes,
+                created_by=None,
+                ttl=timedelta(days=days),
+            )
+            await audit.record(
+                c,
+                org_id,
+                Actor.system("operator-cli"),
+                Action.API_KEY_CREATED,
+                target_type="api_key",
+                target_id=row["id"],
+                details={
+                    "prefix": row["prefix"],
+                    "scopes": row["scopes"],
+                    "expires_at": row["expires_at"],
+                },
+            )
+            # Written inside the transaction: if the file can't be written, no key is created.
+            _write_secret_file(out, secret)
+        return str(row["prefix"])
+    finally:
+        await engine.dispose()
+
+
 async def seed_demo(settings: Settings, slug: str) -> list[SeedOutcome]:
     """Create the synthetic demo incidents and queue their investigations (idempotent)."""
     from aegis.db.engine import make_engine
@@ -276,6 +345,12 @@ def main(argv: list[str] | None = None) -> int:
     flag = dis.add_mutually_exclusive_group(required=True)
     flag.add_argument("--disabled", action="store_true")
     flag.add_argument("--enabled", action="store_true")
+    ck = adm.add_parser("create-api-key", help="mint an API key; the secret goes to --out only")
+    ck.add_argument("--org", required=True)
+    ck.add_argument("--scope", required=True, action="append", choices=API_KEY_SCOPES)
+    ck.add_argument("--out", required=True, type=Path)
+    ck.add_argument("--name", default="operator-cli")
+    ck.add_argument("--days", type=int, default=90, choices=range(1, 366), metavar="1..365")
     sd = adm.add_parser("seed-demo", help="synthetic demo incidents with queued investigations")
     sd.add_argument("--org", required=True)
     aud = sub.add_parser("audit").add_subparsers(dest="audit_command", required=True)
@@ -312,6 +387,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.admin_command == "create-org":
             org_id = asyncio.run(create_org(dsn, args.slug, args.name, args.admin_email))
             sys.stdout.write(f"organization {args.slug} {org_id}\n")
+        elif args.admin_command == "create-api-key":
+            prefix = asyncio.run(
+                create_api_key(settings, args.org, args.name, args.scope, args.days, args.out)
+            )
+            sys.stdout.write(f"api key {prefix} ({', '.join(args.scope)}) written to {args.out}\n")
         elif args.admin_command == "seed-demo":
             for o in asyncio.run(seed_demo(settings, args.org)):
                 sys.stdout.write(
