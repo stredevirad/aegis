@@ -104,3 +104,17 @@ def test_every_evidence_item_carries_provenance():
         snap, req = generate(spec)
         missing += [(spec.id, e.kind.value) for e in analyze(snap, req).evidence if not e.sources]
     assert not missing, missing
+
+
+def test_modality_check_reasons_read_as_plain_text():
+    """Operators read check reasons verbatim: "supported by logs, metrics", not a list repr."""
+    from aegis.core.result import CheckName
+
+    reasons = set()
+    for spec in load_scenarios(SCENARIOS):
+        snap, req = generate(spec)
+        for cand in analyze(snap, req).candidates:
+            reasons |= {c.reason for c in cand.checks if c.name == CheckName.MODALITY_AGREEMENT}
+    assert "supported by logs, metrics, traces" in reasons
+    assert "only metrics modality supports it" in reasons
+    assert not [r for r in reasons if "[" in r or "'" in r], reasons

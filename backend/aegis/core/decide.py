@@ -573,7 +573,7 @@ def _checks(ctx: Context, service: str, leaders: set[str]) -> list[Check]:
             _check(
                 CheckName.MODALITY_AGREEMENT,
                 CheckState.PASS,
-                f"supported by {sorted(m.value for m in mods)}",
+                f"supported by {', '.join(sorted(m.value for m in mods))}",
                 _supporting(ctx, service, change_ok=False),
             )
         )
@@ -593,7 +593,7 @@ def _checks(ctx: Context, service: str, leaders: set[str]) -> list[Check]:
                 _check(
                     CheckName.MODALITY_AGREEMENT,
                     CheckState.NOT_EVALUABLE,
-                    f"only {sorted(m.value for m in mods) or 'no'} modality supports it",
+                    f"only {', '.join(sorted(m.value for m in mods)) or 'no'} modality supports it",
                 )
             )
     return out
