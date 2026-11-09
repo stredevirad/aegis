@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { fetchAllEvidence, fetchEvidenceItem, fetchGraph, qk } from "../../api/queries";
@@ -77,6 +77,11 @@ function Layer({
 }
 
 type Select = (evidenceId: string) => void;
+
+function reveal(el: HTMLElement) {
+  el.scrollIntoView?.({ block: "center" });
+  el.focus({ preventScroll: true });
+}
 
 // --- verdict ----------------------------------------------------------------------------------
 
@@ -609,28 +614,31 @@ export function RcaView({
     queryFn: ({ signal }) => fetchAllEvidence(id, signal),
   });
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
-  const [focused, setFocused] = useState<string | null>(null);
+  // `n` makes a repeated click on the same citation reveal it again.
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
   const elements = useRef(new Map<string, HTMLElement>());
   const pendingScroll = useRef<string | null>(null);
+  const focused = focus?.id ?? null;
 
   const evidence: Evidence[] = useMemo(() => evidenceQ.data?.items ?? [], [evidenceQ.data]);
   const known = useMemo(() => new Set(evidence.map((e) => e.evidence_id)), [evidence]);
 
-  const reveal = useCallback((el: HTMLElement) => {
-    el.scrollIntoView?.({ block: "center", behavior: "smooth" });
-    el.focus({ preventScroll: true });
+  const select = useCallback((evidenceId: string) => {
+    setOpen((prev) => new Set(prev).add(evidenceId));
+    setFocus((prev) => ({ id: evidenceId, n: (prev?.n ?? 0) + 1 }));
   }, []);
 
-  const select = useCallback(
-    (evidenceId: string) => {
-      setOpen((prev) => new Set(prev).add(evidenceId));
-      setFocused(evidenceId);
-      const el = elements.current.get(evidenceId);
-      if (el) reveal(el);
-      else pendingScroll.current = evidenceId;
-    },
-    [reveal],
-  );
+  // Reveal after the expansion has been committed (scrolling before it lands in the wrong place).
+  useEffect(() => {
+    if (!focus) return;
+    const el = elements.current.get(focus.id);
+    if (el) {
+      pendingScroll.current = null;
+      reveal(el);
+    } else {
+      pendingScroll.current = focus.id; // rendered later (fetched individually)
+    }
+  }, [focus]);
 
   const refFor = (evidenceId: string) => (el: HTMLElement | null) => {
     if (el) {
