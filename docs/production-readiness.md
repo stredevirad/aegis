@@ -169,7 +169,7 @@ Portfolio-release status (2026-11-09), matching the "Portfolio release scope" ta
 | M3 LLM adjudication | PARTIAL | adapters, validator, policy, slots, records done; no live LLM output accepted (1B model); hosted models DEFERRED (stretch S1) |
 | M4 live integrations | PARTIAL | Prometheus/Jaeger/Loki/OpenSearch + change feed; live demo run 2026-11-09 → PLAUSIBLE catalog; Tempo/Kubernetes DEFERRED |
 | M5 web application | PARTIAL (portfolio scope met) | 78 unit + 3 Playwright E2E in CI against the compose stack; remediation UI DEFERRED (stretch S3) |
-| M6 remediation and notifications | PARTIAL | remediation lifecycle tested; two reconciler robustness gaps open; notifications DEFERRED |
+| M6 remediation and notifications | PARTIAL | remediation lifecycle tested; the two reconciler robustness gaps were fixed in Phase 6; notifications DEFERRED |
 | M7 containers, compose stack, reproducible demo | DONE | one-command stack verified from a clean Docker state; E2E in CI |
 | M8 self-observability, retention, MCP, topology | DEFERRED | cut by the 2026-11-08 re-scope (read-only MCP server = stretch S4) |
 | M9 Kubernetes packaging and CI/CD | PARTIAL | GitHub Actions CI + gitleaks + Dependabot done; Helm/Kubernetes, SBOM, image scanning DEFERRED |

@@ -149,7 +149,11 @@ class Worker:
         while not stop.is_set():
             try:
                 await self.maintenance_once()
-            except (DBAPIError, OSError):
+            except Exception:
+                # Any failure, not only DB/network errors: this task is not awaited until
+                # shutdown, so an escaping exception would silently stop reaping, promotion,
+                # verification and reconciliation. CancelledError is a BaseException and
+                # still stops the loop.
                 log.exception("maintenance failed")
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop.wait(), timeout=10)

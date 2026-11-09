@@ -84,7 +84,7 @@ Tenant data is isolated with PostgreSQL row-level security. The API, the worker 
 - **SSRF-safe egress to customer backends.** It resolves once, checks every address against deny ranges, connects to the pinned address with the original Host/SNI, follows no redirects and caps response sizes. See [`integrations/egress.py`](backend/aegis/integrations/egress.py) and its 62 tests in [`test_egress.py`](backend/tests/integrations/test_egress.py).
 - **Hash-chained, append-only audit log** with a verify endpoint (`GET /api/v1/audit/verify`) and an operator command (`aegis audit verify`). See [`audit/log.py`](backend/aegis/audit/log.py).
 - **A bounded LLM with an untrusted-data channel.** The validator rejects any output that raises confidence, cites unknown evidence or names a non-candidate, and the deterministic verdict stands. See [`llm/validate.py`](backend/aegis/llm/validate.py) and [`test_validate.py`](backend/tests/llm/test_validate.py).
-- **Human-gated remediation.** It's proposal → approval by a second person (unless the organization explicitly allows self-approval) → execution. Execution claims the approved proposal with a compare-and-set, refuses if the target changed since approval, and is followed by verification with an inverse rollback. Backend and API only; there's no UI yet. See [`remediation/service.py`](backend/aegis/remediation/service.py) and [`docs/remediation.md`](docs/remediation.md).
+- **Human-gated remediation.** It's proposal → approval by a second person (unless the organization explicitly allows self-approval) → execution. Execution claims the approved proposal with a compare-and-set, refuses if the target changed since approval, and writes its result with a second compare-and-set, so a late result can't overwrite a row that the stuck-execution sweeper has already marked failed. Verification follows automatically; rollback applies the inverse that was approved with the action. Backend and API only; there's no UI yet. See [`remediation/service.py`](backend/aegis/remediation/service.py) and [`docs/remediation.md`](docs/remediation.md).
 - **OIDC authorization code + PKCE** with server-side sessions (BFF pattern), tested against a fake IdP and a live Dex. See [`auth/oidc.py`](backend/aegis/auth/oidc.py) and [`test_oidc.py`](backend/tests/api/test_oidc.py).
 - **A pure, clock-free RCA core.** `analyze()` does no I/O and uses no clock or randomness (enforced by an AST test over the package), so the same snapshot always gives the same verdict. See [`core/analyze.py`](backend/aegis/core/analyze.py), [`test_purity.py`](backend/tests/core/test_purity.py) and [`docs/rca.md`](docs/rca.md).
 
@@ -134,7 +134,7 @@ Aegis started as a research prototype: an LLM-driven investigator over the OpenT
 - **Accuracy is unmeasured** beyond the caveated benchmarks above. Thresholds are engineering defaults, not calibrated.
 - **CONFIRMED is reachable mainly for change-induced faults** in synchronous systems. Internal failures without a change are reported as PLAUSIBLE at best ([`docs/rca.md`](docs/rca.md) §7).
 - **Forged telemetry can mislead the deterministic layer.** The guarantee is "never more confident than the data", not resistance to forged data.
-- **Remediation has no UI.** Two known robustness gaps in its stranded-execution reconciler are documented, not yet fixed ([`docs/PORTFOLIO_PROGRESS.md`](docs/PORTFOLIO_PROGRESS.md), "Open follow-ups").
+- **Remediation has no UI.** Proposals, approvals, execution and rollback are API-only.
 
 ## Built with AI assistance
 

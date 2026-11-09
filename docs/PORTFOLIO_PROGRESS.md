@@ -55,7 +55,7 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 ## Phase 6: Final fixes and polish (closing phase)
 The earlier tutor-mode plan (owner writes the fixes) was cancelled by the owner on 2026-11-09; Claude does every item.
 - [x] 6.1 Remediation lost update: regression test (fails first), then compare-and-set final writes in `execute()`/`rollback()`; 0 rows → keep the reconciled row, audit the late outcome, return the current row — 2 new tests failed first for the right reason (`'verifying' == 'failed'`, `'rolled_back' == 'rollback_failed'`); after the fix (`_finish` CAS + `_keep_reconciled`, audit phase `finished_late`): `test_remediation.py` 12 passed; `check.sh -m "not live"` 362 passed / 4 deselected, benchmark gate OK
-- [ ] 6.2 Maintenance-loop fault isolation: tests, per-row `except Exception` in `reconcile_stuck()` (missing row handled), `except Exception` in `Worker._maintenance()` (never `BaseException`); README Limitations + Open follow-ups updated
+- [x] 6.2 Maintenance-loop fault isolation: tests, per-row `except Exception` in `reconcile_stuck()` (missing row handled), `except Exception` in `Worker._maintenance()` (never `BaseException`); README Limitations + Open follow-ups updated — 2 new tests failed first with the `RuntimeError` escaping (`reconcile_stuck`, `_maintenance`); a third guards that cancellation still stops the loop (passes before and after); after the fix: `check.sh -m "not live"` 365 passed / 4 deselected, benchmark gate OK. README bullet + Limitations, ledger M6 row and roadmap M6 row updated
 - [ ] 6.3 `.github/dependabot.yml`: `open-pull-requests-limit: 0` for every ecosystem
 - [ ] 6.4 `core/decide.py`: render modality lists as plain text, not a Python list repr
 - [ ] 6.5 `RcaView.tsx` VerdictSummary: readable headline from structured root causes (`mechanismLabel()`), Vitest test
@@ -97,9 +97,7 @@ The earlier tutor-mode plan (owner writes the fixes) was cancelled by the owner 
 - Live-demo memory wording aligned with the measurement (~1 GB in total).
 
 ## Open follow-ups (not in any phase; owner decides)
-- Automated security review (2026-11-09) of 8b5fbad, `backend/aegis/remediation/`. Not fixed in Phase 1 (scope rule 9); both judged plausible but low-likelihood:
-  1. `RemediationService.execute`/`rollback` write the final status unconditionally (no `WHERE status='executing'`/`'rolling_back'` compare-and-set). If `reconcile_stuck()` (300 s staleness) marks a row `failed`/`rollback_failed` while a slow flag request is still in flight, the late final write would overwrite that status. That needs a request in flight longer than 300 s, which egress timeouts make unlikely. Fix: CAS the final write and treat 0 rows as "already reconciled".
-  2. `reconcile_stuck()` uses `.one()` and catches only `FlagError`/`RemediationError`, and the worker's `_maintenance` loop catches only `DBAPIError`/`OSError`. An unexpected exception for one row (e.g. the proposal/action row missing) would end the maintenance task, and with it lease reaping, until the worker restarts. Fix: per-row `except Exception` with `log.exception` + `.first()`, and a broader catch in `_maintenance`.
+- None. The two remediation findings from the 2026-11-09 automated security review of 8b5fbad (lost update on the final execute/rollback write; maintenance-loop fault isolation) were fixed in Phase 6 (6.1, 6.2).
 
 ## Facts that differ from the 2026-11-08 snapshot
 - An extra local branch, `feature/mcp-interoperability`, points at dc7c032 (= `v1.1-research-freeze`), an ancestor of `main`. It stays local and unpushed.

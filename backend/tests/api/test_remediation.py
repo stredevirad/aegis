@@ -536,3 +536,71 @@ async def test_late_rollback_result_does_not_overwrite_a_reconciled_row(
     assert late[0]["details"]["kept_status"] == "rollback_failed"
     assert late[0]["details"]["ok"] is True
     assert late[0]["details"]["state_after"] == {"value": "0.3", "version": flag["version"]}
+
+
+async def test_one_bad_stuck_row_does_not_stop_the_sweep(
+    world, app_engine, su_conn, monkeypatch, caplog
+):
+    """An unexpected exception while reconciling one row is logged and the sweep carries on
+    with the next row (it must not escape into the worker's maintenance loop)."""
+    import logging
+
+    from aegis.remediation.flags import FlagClient
+    from aegis.remediation.runner import reconcile_stuck
+    from aegis.remediation.service import Remediation
+
+    w = world
+    bad = (await _propose(w, w["admin"])).json()
+    other = (
+        await w["admin"].post(
+            "/api/v1/incidents",
+            json={"title": "catalog errors again", "severity": "high", "service": "catalog"},
+            headers=CSRF,
+        )
+    ).json()
+    good = (
+        await w["admin"].post(
+            f"/api/v1/incidents/{other['id']}/remediations",
+            json={"action_id": w["action"]["id"], "reason": "same fault, second incident"},
+            headers=CSRF,
+        )
+    ).json()
+    # both stranded; the bad row is older, so the sweep claims it first
+    for pid, minutes in ((bad["id"], 20), (good["id"], 10)):
+        await su_conn.execute(
+            "UPDATE aegis.remediation_proposals SET status = 'executing', "
+            "updated_at = now() - make_interval(mins => $2) WHERE id = $1",
+            uuid.UUID(pid),
+            minutes,
+        )
+    real_get = FlagClient.get
+    calls = 0
+
+    async def get_fails_once(self, key):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("unexpected flag-client bug")
+        return await real_get(self, key)
+
+    monkeypatch.setattr(FlagClient, "get", get_fails_once)
+    st = w["app"].state.aegis
+    try:
+        with caplog.at_level(logging.ERROR, logger="aegis.remediation"):
+            await reconcile_stuck(
+                app_engine,
+                Remediation(app_engine, st.settings, st.registry, st.keyring, st.egress),
+                "w-sweep",
+            )
+        got = (await w["admin"].get(f"/api/v1/remediations/{good['id']}")).json()
+        assert got["status"] == "failed" and got["execution"]["uncertain"] is True
+        logged = [r for r in caplog.records if r.name == "aegis.remediation" and r.exc_info]
+        assert logged and logged[0].exc_info is not None
+        assert logged[0].exc_info[0] is RuntimeError
+    finally:
+        # the sweep is global across organizations: leave no claimable stuck row behind
+        await su_conn.execute(
+            "UPDATE aegis.remediation_proposals SET status = 'failed', verify_lease_until = NULL "
+            "WHERE id = ANY($1::uuid[]) AND status = 'executing'",
+            [uuid.UUID(bad["id"]), uuid.UUID(good["id"])],
+        )
