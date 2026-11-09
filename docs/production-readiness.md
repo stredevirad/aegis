@@ -23,6 +23,19 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 
 Newest first. Each entry: what was run, the observed result, and what it does not show.
 
+### 2026-11-09 — Portfolio Phase 5: README, media, docs, release
+
+* Media (f05d9ef): `frontend/e2e/media.spec.ts` (`E2E_MEDIA=1`) regenerates `docs/media/*.png` from the seeded stack. `demo.gif` is the golden-path E2E recorded with `E2E_RECORD=1`, converted with ffmpeg 9.0.2 (10 fps, 1100 px, 5.0 MB). Found while reviewing the screenshots and fixed (b5df992): an abstention's root-cause layer was labelled "VERIFIED FINDING"; it's now "NO FINDING", with tests asserting no verified-finding region for INSUFFICIENT and NO_ANOMALY.
+* README rewritten (b1e402d). Numbers re-run on 2026-11-09:
+  * `python -m aegis.benchmark.run --scenarios ../eval/scenarios` → 12 correct, 3 appropriate abstentions, 0 confident-wrong; 11 asserted; precision 1.0 (Wilson 0.741–1.0).
+  * `python -m aegis.benchmark.heldout --root ..` → 8 cases, 0 confident-wrong, 6 abstentions, 2 partial (= post-hoc run 2; clean run 1 also had 0 confident-wrong).
+  * The research README moved to `docs/research/README-research.md` with a banner.
+* Docs truthfulness pass (9c6d5fa): `docs/README.md` index; a portfolio-scope table in the roadmap; banners on 15 research-era docs; the demo script rewritten for the one-command stack.
+* Independent stranger review (Sonnet subagent, fresh `gh repo clone`, README only): the quickstart worked as written (exit 0; cached images, so not a cold start). All 35 relative links resolve. The seeded verdicts, both benchmark outputs, the 62 egress tests and the E2E run (3 passed, media test skipped) matched the README. Wording nits were fixed (see PORTFOLIO_PROGRESS Phase 5 step 5). Re-run afterwards: `demo-up.sh` exit 0 in 36 s; dev login 200; the 4 seeded verdicts as documented; `demo-down.sh` exit 0.
+* Release `v1.0.0` (private repository) created from `main` at the commit that adds this entry.
+
+Does not show: a cold-cache first run (every run reused cached base layers), or GitHub rendering of the Mermaid diagram.
+
 ### 2026-11-09 — Portfolio Phase 4: CI
 
 * `backend/tests/conftest.py`: an unreachable PostgreSQL used to skip every DB test, so a gate could pass having run none of them. With `AEGIS_REQUIRE_DB=1` it now fails. Checked with the database stopped: `tests/db/test_cli.py` gave 3 skipped by default and 3 errors with the variable set. `tests/test_require_db.py` covers both modes.
@@ -146,13 +159,19 @@ What this does **not** show: OIDC login (next step; dev login and API keys only 
 
 ## Milestone status (summary; details per criterion in the roadmap)
 
+Portfolio-release status (2026-11-09), matching the "Portfolio release scope" table in [`production-roadmap.md`](production-roadmap.md).
+
 | Milestone | Status | Evidence |
 |---|---|---|
-| M0 audit, decisions, research preservation | DONE | roadmap; research suite 159 passed; MIT licence added 2026-11-09 |
-| M1 pure RCA core + benchmark gate | DONE (LLM-free) | core tests; benchmark gate |
-| M2 persistence, jobs, API, auth, tenancy, audit, ingestion | DONE | schema 0001–0004, queue, worker, API, ingestion, OIDC (fake IdP + live Dex), API keys, RBAC, CLI — see log |
-| M3 LLM adjudication | PARTIAL | adapters, validator, policy, slots, records done; live OpenAI/Anthropic blocked (no credentials); LLM benchmark M10 |
-| M4 live integrations | PARTIAL | registry, egress, Prometheus/Jaeger/Loki/OpenSearch, integrations API, live demo RCA; Tempo/Kubernetes planned |
-| M5 web application | PARTIAL | merged into `main` 2026-11-09; 78 unit tests + 3 Playwright E2E against the real backend green (Phase 2); remediation UI deferred (stretch S3) |
-| M6 remediation and notifications | PARTIAL | remediation lifecycle done and tested; live verification and notifications pending |
-| M7–M11 | PLANNED | — |
+| M0 audit, decisions, research preservation | DONE | roadmap; research suite 159 passed (CI); MIT licence 2026-11-09 |
+| M1 pure RCA core + benchmark gate | DONE (LLM-free) | core tests; benchmark gate 15/15 in CI |
+| M2 persistence, jobs, API, auth, tenancy, audit, ingestion | DONE | 134 PostgreSQL tests in CI with `AEGIS_REQUIRE_DB=1` (none skipped) |
+| M3 LLM adjudication | PARTIAL | adapters, validator, policy, slots, records done; no live LLM output accepted (1B model); hosted models DEFERRED (stretch S1) |
+| M4 live integrations | PARTIAL | Prometheus/Jaeger/Loki/OpenSearch + change feed; live demo run 2026-11-09 → PLAUSIBLE catalog; Tempo/Kubernetes DEFERRED |
+| M5 web application | PARTIAL (portfolio scope met) | 78 unit + 3 Playwright E2E in CI against the compose stack; remediation UI DEFERRED (stretch S3) |
+| M6 remediation and notifications | PARTIAL | remediation lifecycle tested; two reconciler robustness gaps open; notifications DEFERRED |
+| M7 containers, compose stack, reproducible demo | DONE | one-command stack verified from a clean Docker state; E2E in CI |
+| M8 self-observability, retention, MCP, topology | DEFERRED | cut by the 2026-11-08 re-scope (read-only MCP server = stretch S4) |
+| M9 Kubernetes packaging and CI/CD | PARTIAL | GitHub Actions CI + gitleaks + Dependabot done; Helm/Kubernetes, SBOM, image scanning DEFERRED |
+| M10 scale, chaos, benchmark breadth | DEFERRED | load/chaos and 25 scenario types cut; RCAEval = stretch S2 |
+| M11 release candidate | DEFERRED | replaced by portfolio release v1.0.0 |

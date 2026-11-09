@@ -23,7 +23,7 @@ The one-command demo seeds four synthetic incidents (`aegis admin seed-demo`). T
 
 | Seeded case | Verdict | Support | What the engine says |
 |---|---|---|---|
-| Feature flag breaks `catalog` (s06) | **CONFIRMED** "Strongly supported" | strong | Root cause `catalog`, change-induced (feature flag). Six checks pass, each with cited evidence. |
+| Feature flag breaks `catalog` (s06) | **CONFIRMED** "Strongly supported" | strong | Root cause `catalog`, change-induced (feature flag). Six checks pass; the decisive ones cite evidence (e.g. the flag change 0.5 min before onset). Temporal precedence is a tie, so it's not evaluable. |
 | Real `catalog` failure plus a noisy, unrelated batch job (s09) | PLAUSIBLE "Likely cause" | moderate | Root cause `catalog`, not the decoy. |
 | `catalog` failure while frontend logs carry injected instructions claiming `payments` is at fault (s10) | PLAUSIBLE "Likely cause" | moderate | Root cause `catalog`. The injected text is rendered as inert data and can't change the verdict. |
 | Only edge metrics available (s08) | **INSUFFICIENT** "Not enough evidence" | none | **No root cause named.** Next checks: find out what frontend depends on, inspect failing traces, check recent changes. |
@@ -36,7 +36,7 @@ Reproduce: [`backend/tests/db/test_demo_seed.py`](backend/tests/db/test_demo_see
 
 ## Quickstart
 
-**Prerequisites:** Docker Desktop (Compose v2) with about 4 GB of memory available to it. Measured use is ~0.4 GB running, or ~1 GB with the live telemetry demo; the first run builds the images, which takes longer and needs more.
+**Prerequisites:** Docker Desktop (Compose v2); about 4 GB of memory available to Docker is recommended. Measured use is ~0.4 GB running, or ~1 GB with the live telemetry demo. The first run also downloads base images and builds two images, so it takes longer than later runs (about 1 minute with a warm cache).
 
 ```bash
 git clone https://github.com/stredevirad/aegis.git && cd aegis
@@ -50,7 +50,7 @@ scripts/demo-up.sh            # Windows PowerShell: scripts\demo-up.ps1
 
 **Live telemetry (optional, about 2 GB more):** `scripts/demo-up.sh --live` also starts four small instrumented services, an OpenTelemetry Collector, Prometheus, Jaeger, Loki, Alertmanager and a flag service. Wait about 3 minutes, then run `scripts/demo-fault.sh` to break `catalog` through a feature flag. Within about a minute, Prometheus alerts, Alertmanager posts to Aegis, an incident opens and is investigated automatically from live telemetry. Undo it with `scripts/demo-fault.sh --reset`.
 
-**Stop and delete everything:** `scripts/demo-down.sh` (or `.ps1`).
+**Stop:** `scripts/demo-down.sh` (or `.ps1`) removes the containers, network and volumes (database, demo keys). The built `aegis-*:dev` images are kept for a faster next start; remove them with `docker image rm aegis-backend:dev aegis-web:dev aegis-demo:dev`.
 
 > **DEMO MODE.** The stack runs the API in its development profile, with the email-only development login and publicly known demo secrets ([`deploy/compose.yaml`](deploy/compose.yaml)). Keep it on localhost. The production profile refuses to start like this: it requires OIDC, HTTPS, secure cookies and real secrets ([`backend/aegis/config.py`](backend/aegis/config.py)).
 
@@ -95,7 +95,7 @@ Tenant data is isolated with PostgreSQL row-level security. The API, the worker 
 | Synthetic regression benchmark (15 scenarios) | 15/15 pass: **12 correct, 3 appropriate abstentions, 0 confident-wrong**; asserted-root-cause precision 1.0 (11 asserted; Wilson 95% CI 0.741–1.0) | `cd backend && uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` |
 | Held-out real captures (8, OpenTelemetry Demo, expected answers hashed before pipeline code) | **0 confident-wrong** in the clean run 1; current code: 0 confident-wrong, 6 appropriate abstentions, 2 partial | `cd backend && uv run --frozen python -m aegis.benchmark.heldout --root .. --out ../eval/results/heldout.json` |
 | Live demo, one run (2026-11-09): fault → alert → incident → automatic live investigation | `catalog` incident: **PLAUSIBLE / moderate, root cause `catalog`, feature-flag mechanism**. The engine reported no valid baseline: the automatic 60-minute baseline window predates a 5-minute-old demo stack. `frontend` incident: INSUFFICIENT. | `scripts/demo-up.sh --live`, wait, `scripts/demo-fault.sh` |
-| CI on every push ([workflow](.github/workflows/ci.yml)) | Backend **360 tests, 0 skipped** (134 against real PostgreSQL; a missing database fails CI); ruff + mypy `--strict`; frontend 78 unit tests + build; **3 Playwright E2E tests against the one-command stack**; research suite 159; gitleaks over full history | see the Actions tab |
+| CI on every code push ([workflow](.github/workflows/ci.yml); docs-only pushes skip it) | Backend **360 tests, 0 skipped** (134 against real PostgreSQL; a missing database fails CI); ruff + mypy `--strict`; frontend 78 unit tests + build; **3 Playwright E2E tests against the one-command stack**; research suite 159; gitleaks over full history | see the Actions tab |
 
 **Read these numbers carefully.** The synthetic benchmark was written by the same effort that built the engine and was used during development: **it's a regression gate, not an accuracy estimate.** The held-out set is small, and its captures lack span status, topology, change events and baselines, so it can show "no confident wrong answers on degraded real telemetry" but not localisation accuracy. One live run isn't accuracy either. Details: [`docs/rca.md`](docs/rca.md) §6, and the verification ledger [`docs/production-readiness.md`](docs/production-readiness.md).
 

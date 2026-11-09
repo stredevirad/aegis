@@ -44,13 +44,13 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 - [x] 5. Checkpoint `checkpoint-p4`
 
 ## Phase 5: README, media, truthful docs, release
-- [ ] 1. GIF + 4 screenshots in `docs/media/`
-- [ ] 2. README rewrite (research README → `docs/research/README-research.md`)
-- [ ] 3. Docs truthfulness pass (index, roadmap portfolio-scope section, research-era banners, demo script)
-- [ ] 4. `private/INTERVIEW_PREP.md` (gitignored)
-- [ ] 5. Independent stranger review (one Sonnet subagent), fixes, re-run quickstart
-- [ ] 6. `gh release create v1.0.0` (repo stays private); final ledger snapshot
-- [ ] 7. Checkpoint `checkpoint-p5`; final report; ask about stretch phases
+- [x] 1. GIF + 4 screenshots in `docs/media/` — f05d9ef; `e2e/media.spec.ts` (E2E_MEDIA=1) + golden path with E2E_RECORD=1 → ffmpeg (10 fps, 1100 px, 5.0 MB); found and fixed: abstentions were labelled "VERIFIED FINDING" (b5df992)
+- [x] 2. README rewrite (research README → `docs/research/README-research.md`) — b1e402d; all relative links checked to exist; numbers re-run 2026-11-09 (benchmark, held-out)
+- [x] 3. Docs truthfulness pass (index, roadmap portfolio-scope section, research-era banners, demo script) — 9c6d5fa; 15 research-era docs bannered; ledger milestone table matches the roadmap
+- [x] 4. `private/INTERVIEW_PREP.md` (gitignored) — `git check-ignore` confirms; never committed
+- [x] 5. Independent stranger review (one Sonnet subagent), fixes, re-run quickstart — fresh `gh repo clone` + README quickstart: no broken steps, no dead links (35 relative), all numbers matched (benchmarks, seeded verdicts, 62 egress tests, E2E 3 passed). Nits fixed: s06 "each with cited evidence" overstated (2 passing checks carry no evidence IDs), "delete everything" (images are kept), memory figure labelled a recommendation, CI row notes docs-only pushes skip CI. Re-run by me: `demo-up.sh` exit 0 in 36 s, login OK, 4 seeded verdicts as documented
+- [x] 6. `gh release create v1.0.0` (repo stays private); final ledger snapshot
+- [x] 7. Checkpoint `checkpoint-p5`; final report; ask about stretch phases
 
 ## Deferred (cut by the 2026-11-08 portfolio re-scope; not built)
 - Helm / Kubernetes deployment (M9): Docker Compose is enough for a one-command portfolio demo.
