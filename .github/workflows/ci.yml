@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    # Progress/ledger-only checkpoints don't need a full run (private-repo Actions minutes).
+    # Progress/ledger-only checkpoints don't need a full run.
     paths-ignore: ["**/*.md", "docs/**"]
   pull_request:
     branches: [main]

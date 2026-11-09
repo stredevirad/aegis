@@ -59,7 +59,7 @@ The earlier tutor-mode plan (owner writes the fixes) was cancelled by the owner 
 - [x] 6.3 `.github/dependabot.yml`: `open-pull-requests-limit: 0` for every ecosystem — PyYAML parse: github-actions, npm, uv, docker all 0
 - [x] 6.4 `core/decide.py`: render modality lists as plain text, not a Python list repr — new test (fails on the old text); benchmark and held-out output byte-identical before/after (12 CORRECT + 3 ABSTAINED; held-out 6 abstained + 2 partially correct, 0 confident-wrong); `git diff --stat -- eval/` empty; `check.sh` 366 passed / 4 deselected. Other check reasons still use list reprs (e.g. "dependencies ['catalog'] are also anomalous"); left unchanged per the item's scope
 - [x] 6.5 `RcaView.tsx` VerdictSummary: readable headline from structured root causes (`mechanismLabel()`), Vitest test — headline/summary for CONFIRMED/PLAUSIBLE worded from `root_causes` (e.g. "Strongly supported: catalog — Change-induced (feature flag)"); other verdicts and the backend `display_label` unchanged; 3 new Vitest tests (2 fail on the old component); typecheck + ESLint clean, Vitest 81 passed in 8 files (incl. `hostile.test.tsx`), build OK (444.88 kB JS)
-- [ ] 6.6 `ci.yml`: drop "(private-repo Actions minutes)" from the paths-ignore comment
+- [x] 6.6 `ci.yml`: drop "(private-repo Actions minutes)" from the paths-ignore comment — `grep -rn private-repo .github` finds nothing; YAML parses
 - [ ] 6.7 README: plain-language sentence, results lead lines, frozen-research line; links and numbers verified
 - [ ] 6.8 Media: screenshots + reproducible GIF (env-gated spec + ffmpeg) from a fresh demo stack
 - [ ] 6.9 `private/INTERVIEW_PREP.md` (gitignored): anchors, both bugs explained, honest authorship answer
