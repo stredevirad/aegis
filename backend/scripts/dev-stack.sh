@@ -5,7 +5,8 @@
 #   backend/scripts/dev-stack.sh                                             # API on 127.0.0.1:8000
 #
 # Creates organization "demo" with an invitation for admin@example.com (log in with that
-# email through the SPA's development login). Development credentials only.
+# email through the SPA's development login) and seeds four synthetic demo incidents.
+# Development credentials only.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PORT="${AEGIS_DEV_PG_PORT:-55433}"
@@ -22,6 +23,8 @@ export AEGIS_MIGRATION_DATABASE_URL="postgresql+asyncpg://aegis_owner:${OWNER_PW
 export AEGIS_DATABASE_URL="postgresql+asyncpg://aegis_app:${APP_PW}@127.0.0.1:${PORT}/${DB}"
 uv run --frozen aegis migrate upgrade
 uv run --frozen aegis admin create-org --slug demo --name "Demo" --admin-email admin@example.com
+# Synthetic demo incidents with queued scenario investigations (idempotent; the worker runs them).
+uv run --frozen aegis admin seed-demo --org demo
 uv run --frozen aegis worker &
 WORKER=$!
 trap 'kill $WORKER 2>/dev/null || true' EXIT

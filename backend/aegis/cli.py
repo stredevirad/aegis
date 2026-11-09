@@ -7,6 +7,7 @@
     aegis admin create-org --slug S --name N [--admin-email E]
     aegis admin invite --org S --email E --role R
     aegis admin set-user-disabled --email E (--disabled | --enabled)
+    aegis admin seed-demo --org S            synthetic demo incidents + queued investigations
     aegis audit verify --org S
 
 Operator commands connect with ``AEGIS_MIGRATION_DATABASE_URL`` (the owning role): they act
@@ -24,11 +25,15 @@ import signal
 import sys
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import asyncpg
 
 from aegis.config import Settings, get_settings, validate_for_profile
 from aegis.observability import logging as aegis_logging
+
+if TYPE_CHECKING:
+    from aegis.demo_seed import SeedOutcome
 
 log = logging.getLogger("aegis.cli")
 
@@ -203,6 +208,31 @@ async def set_user_disabled(dsn: str, email: str, disabled: bool) -> int:
         await conn.close()
 
 
+async def seed_demo(settings: Settings, slug: str) -> list[SeedOutcome]:
+    """Create the synthetic demo incidents and queue their investigations (idempotent)."""
+    from aegis.db.engine import make_engine
+    from aegis.demo_seed import SeedError
+    from aegis.demo_seed import seed_demo as run_seed
+    from aegis.investigations.sources import ScenarioRegistry
+
+    if settings.scenario_dir is None:
+        raise SystemExit("AEGIS_SCENARIO_DIR is required for seed-demo")
+    url = _owner_dsn(settings).replace("postgresql://", "postgresql+asyncpg://", 1)
+    engine = make_engine(settings, url)
+    try:
+        return await run_seed(
+            engine,
+            ScenarioRegistry(settings.scenario_dir),
+            slug,
+            queue_limit=settings.org_queue_limit,
+            max_attempts=settings.job_max_attempts,
+        )
+    except SeedError as exc:
+        raise SystemExit(str(exc)) from None
+    finally:
+        await engine.dispose()
+
+
 async def verify_audit(dsn: str, slug: str) -> int | None:
     conn = await asyncpg.connect(dsn)
     try:
@@ -246,6 +276,8 @@ def main(argv: list[str] | None = None) -> int:
     flag = dis.add_mutually_exclusive_group(required=True)
     flag.add_argument("--disabled", action="store_true")
     flag.add_argument("--enabled", action="store_true")
+    sd = adm.add_parser("seed-demo", help="synthetic demo incidents with queued investigations")
+    sd.add_argument("--org", required=True)
     aud = sub.add_parser("audit").add_subparsers(dest="audit_command", required=True)
     av = aud.add_parser("verify")
     av.add_argument("--org", required=True)
@@ -280,6 +312,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.admin_command == "create-org":
             org_id = asyncio.run(create_org(dsn, args.slug, args.name, args.admin_email))
             sys.stdout.write(f"organization {args.slug} {org_id}\n")
+        elif args.admin_command == "seed-demo":
+            for o in asyncio.run(seed_demo(settings, args.org)):
+                sys.stdout.write(
+                    f"{o.scenario}: incident {o.incident_id} "
+                    f"({'created' if o.incident_created else 'exists'}), investigation "
+                    f"{o.investigation_id} ({'queued' if o.investigation_created else 'exists'})\n"
+                )
         elif args.admin_command == "invite":
             asyncio.run(invite(dsn, args.org, args.email, args.role))
             sys.stdout.write(f"invited {args.email.lower()} to {args.org} as {args.role}\n")
