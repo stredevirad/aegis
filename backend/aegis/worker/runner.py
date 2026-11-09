@@ -52,7 +52,7 @@ from aegis.jobs.events import EventKind
 from aegis.jobs.queue import ClaimedJob, LeaseLost, RetryableError, Windows
 from aegis.llm.adjudicate import Adjudicator
 from aegis.observability.context import investigation_id_var, job_id_var, org_id_var
-from aegis.remediation.runner import Verifier
+from aegis.remediation.runner import Verifier, reconcile_stuck
 
 log = logging.getLogger("aegis.worker")
 
@@ -188,6 +188,7 @@ class Worker:
                 )
         if self.verifier is not None:
             await self.verifier.run_due(self.worker_id)
+            await reconcile_stuck(self.engine, self.verifier.remediation, self.worker_id)
 
     # --- one job --------------------------------------------------------------------------
 

@@ -87,6 +87,10 @@ class CircuitBreaker:
 
 
 _BREAKERS: dict[str, CircuitBreaker] = {}
+# Failures that say nothing about the provider's health (they do not trip the breaker).
+NOT_PROVIDER_HEALTH = frozenset(
+    {"invalid_output", "refused", "client_error", "denied", "misconfigured"}
+)
 
 
 def breaker(connector_id: str) -> CircuitBreaker:
@@ -117,6 +121,9 @@ class Provider:
     connector: Connector
     credential: Credential
     egress: EgressClient
+    # Breakers are per integration (organization + connector): a connector may be shared by
+    # several organizations, and one tenant's bad credential must not trip it for the others.
+    breaker_key: str | None = None
     api: Api = field(init=False)
     locality: Literal["local", "cloud"] = field(init=False)
 
@@ -124,7 +131,7 @@ class Provider:
         self.api, self.locality, _, _ = provider_options(self.connector)
 
     async def complete(self, call: ModelCall) -> ModelResult:
-        cb = breaker(self.connector.id)
+        cb = breaker(self.breaker_key or self.connector.id)
         if not cb.allow():
             raise ProviderError(
                 "circuit_open",
@@ -138,7 +145,7 @@ class Provider:
                 "anthropic": self._anthropic,
             }[self.api](call)
         except ProviderError as exc:
-            if exc.category not in ("invalid_output", "refused"):
+            if exc.category not in NOT_PROVIDER_HEALTH:
                 cb.record(False)
             raise
         cb.record(True)
@@ -162,6 +169,9 @@ class Provider:
         except EgressDenied as exc:
             raise ProviderError("denied", exc.reason) from None
         except EgressError as exc:
+            if exc.status is not None and 400 <= exc.status < 500 and exc.status != 429:
+                # the request or credential was rejected: not a sign the provider is down
+                raise ProviderError("client_error", str(exc)) from None
             raise ProviderError(exc.category, str(exc)) from None
         try:
             return resp.json()

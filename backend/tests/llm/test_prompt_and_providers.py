@@ -224,3 +224,25 @@ def test_provider_options_must_be_explicit():
     )
     with pytest.raises(ProviderError):
         Provider(bad, Credential("none"), CapturingEgress(lambda *a: {}))
+
+
+async def test_breaker_is_per_integration_and_ignores_client_errors():
+    conn = llm("ollama", cid="llm-shared")
+    bad_key = CapturingEgress(lambda p, b: EgressError("http_status", "401", status=401))
+    tenant_a = Provider(
+        conn, Credential("bearer", token="wrong"), bad_key, breaker_key="integration:a"
+    )
+    for _ in range(5):
+        with pytest.raises(ProviderError) as e:
+            await tenant_a.complete(CALL)
+        assert e.value.category == "client_error"
+    assert breaker("integration:a").opened_at is None  # credential errors are not provider health
+    down = CapturingEgress(lambda p, b: EgressError("connect", "down"))
+    tenant_a_down = Provider(conn, Credential("none"), down, breaker_key="integration:a2")
+    for _ in range(3):
+        with pytest.raises(ProviderError):
+            await tenant_a_down.complete(CALL)
+    assert breaker("integration:a2").opened_at is not None
+    ok = CapturingEgress(lambda p, b: {"message": {"content": "{}"}})
+    tenant_b = Provider(conn, Credential("none"), ok, breaker_key="integration:b")
+    assert (await tenant_b.complete(CALL)).text == "{}"  # same connector, other tenant: unaffected

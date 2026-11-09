@@ -33,7 +33,7 @@ class FakeProvider:
     script: ClassVar[list] = []
     seen: ClassVar[list] = []
 
-    def __init__(self, connector, credential, egress):
+    def __init__(self, connector, credential, egress, **_):
         self.connector = connector
 
     async def complete(self, call):

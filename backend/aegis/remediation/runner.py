@@ -167,3 +167,103 @@ class Verifier:
                     details={"result": result["result"], "reason": result.get("reason")},
                 )
         return result
+
+
+STUCK_AFTER_SECONDS = 300
+
+
+async def reconcile_stuck(
+    engine: AsyncEngine,
+    remediation: Remediation,
+    worker: str,
+    stale_seconds: int = STUCK_AFTER_SECONDS,
+    limit: int = 5,
+) -> int:
+    """Rows left in 'executing'/'rolling_back' by a crash: re-read the target, record what is
+    observed, mark failed with ``uncertain: true``. Never re-executes (no blind retry)."""
+    handled = 0
+    for _ in range(limit):
+        async with system_tx(engine) as c:
+            row = (
+                await c.execute(
+                    text("SELECT * FROM aegis.claim_stuck_remediation(:w, :s, :l)"),
+                    {"w": worker, "s": stale_seconds, "l": LEASE_SECONDS},
+                )
+            ).first()
+        if row is None:
+            break
+        handled += 1
+        org_id, proposal_id, status = row.org_id, row.proposal_id, row.status
+        observed: dict[str, Any] = {}
+        async with tenant_tx(engine, org_id) as c:
+            p = (
+                (
+                    await c.execute(
+                        select(remediation_proposals).where(
+                            remediation_proposals.c.id == proposal_id
+                        )
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            action = (
+                (
+                    await c.execute(
+                        select(remediation_actions).where(
+                            remediation_actions.c.id == p["action_id"]
+                        )
+                    )
+                )
+                .mappings()
+                .one()
+            )
+        try:
+            async with tenant_tx(engine, org_id) as c:
+                client = await remediation._flag_client(c, org_id, action["integration_id"])
+            observed = (await client.get(p["params"]["flag_key"])).as_dict()
+        except (FlagError, RemediationError) as exc:
+            observed = {"error": str(exc)[:200]}
+        final = "failed" if status == "executing" else "rollback_failed"
+        record = {
+            "ok": False,
+            "uncertain": True,
+            "reason": f"interrupted while {status}; reconciled by {worker}",
+            "observed": observed,
+            "at": datetime.now(UTC).isoformat(),
+        }
+        column = "execution" if status == "executing" else "rollback"
+        async with tenant_tx(engine, org_id) as c:
+            done = (
+                await c.execute(
+                    update(remediation_proposals)
+                    .where(
+                        remediation_proposals.c.org_id == org_id,
+                        remediation_proposals.c.id == proposal_id,
+                        remediation_proposals.c.status == status,
+                        remediation_proposals.c.verify_lease_owner == worker,
+                    )
+                    .values(
+                        {
+                            "status": final,
+                            column: {**(p[column] or {}), **record},
+                            "verify_lease_until": None,
+                            "updated_at": func.now(),
+                        }
+                    )
+                    .returning(remediation_proposals.c.id)
+                )
+            ).first()
+            if done is not None:
+                await audit.record(
+                    c,
+                    org_id,
+                    Actor.system(worker),
+                    Action.REMEDIATION_EXECUTED
+                    if status == "executing"
+                    else Action.REMEDIATION_ROLLED_BACK,
+                    target_type="remediation",
+                    target_id=proposal_id,
+                    details={"phase": "reconciled", "status": final, "observed": observed},
+                )
+    return handled

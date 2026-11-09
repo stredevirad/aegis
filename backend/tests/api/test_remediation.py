@@ -383,3 +383,44 @@ async def test_verification_of_a_synthetic_diagnosis_is_not_evaluable(
         "synthetic" in got["verification"]["reason"]
         and got["verification"]["target_unchanged_since_execution"] is True
     )
+
+
+async def test_stranded_execution_is_reconciled_and_unblocks_new_proposals(
+    world, app_engine, su_conn
+):
+    """A crash between committing 'executing' and the final update must not strand the row
+    (it would block every new proposal for the action and incident forever)."""
+    from aegis.remediation.runner import reconcile_stuck
+    from aegis.remediation.service import Remediation
+
+    w = world
+    p = (await _propose(w, w["admin"])).json()
+    await su_conn.execute(
+        "UPDATE aegis.remediation_proposals SET status = 'executing', updated_at = now() - interval '10 minutes' WHERE id = $1",
+        uuid.UUID(p["id"]),
+    )
+    assert (await _propose(w, w["admin"])).status_code == 409  # blocked while stranded
+    st = w["app"].state.aegis
+    n = await reconcile_stuck(
+        app_engine,
+        Remediation(app_engine, st.settings, st.registry, st.keyring, st.egress),
+        "w-sweep",
+    )
+    assert n == 1
+    got = (await w["admin"].get(f"/api/v1/remediations/{p['id']}")).json()
+    assert got["status"] == "failed" and got["execution"]["uncertain"] is True
+    assert got["execution"]["observed"] == {
+        "value": "0.3",
+        "version": 1,
+    }  # re-read, not re-executed
+    assert (await _flag(w))["value"] == "0.3"
+    assert (await _propose(w, w["admin"])).status_code == 201
+    # a fresh 'executing' row (a request still in flight) is left alone
+    assert (
+        await reconcile_stuck(
+            app_engine,
+            Remediation(app_engine, st.settings, st.registry, st.keyring, st.egress),
+            "w-sweep",
+        )
+        == 0
+    )

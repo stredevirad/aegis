@@ -144,7 +144,9 @@ class Adjudicator:
         built = prompts.build(
             analysis, max_chars=prompt_budget_chars(integ.connector, org.ai_max_output_tokens)
         )
-        provider = self.provider_factory(integ.connector, integ.credential, self.egress)
+        provider = self.provider_factory(
+            integ.connector, integ.credential, self.egress, breaker_key=f"integration:{integ.id}"
+        )
         base = {"provider": integ.connector.id, "api": api, "model": model, "locality": locality}
 
         async with slots.hold(
