@@ -8,17 +8,29 @@ Environment for all runs unless stated: Windows 11, Python 3.13 (backend via `uv
 
 | Suite | Command (from) | Result | Date |
 |---|---|---|---|
-| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 352 passed, 4 deselected, gate green | 2026-11-09 |
+| Full backend gate (format, lint, types, tests, benchmark) | `backend/scripts/check.sh -m "not live"` | 356 passed, 4 deselected, gate green | 2026-11-09 |
 | Backend PostgreSQL, API and process tests (run as `aegis_app`) | `docker compose -f deploy/compose.dev.yaml up -d --wait` then `uv run --frozen pytest -m "db and not live"` (`backend/`) | 128 passed, 228 deselected (part of the 352 above; the live Dex test was not run) | 2026-11-09 |
 | Synthetic benchmark gate | `uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` (`backend/`) | 15/15 (12 correct, 3 appropriate abstentions), 0 confident-wrong, exit 0 | 2026-10-02 |
 | Research suite (frozen layer) | `uv run --no-project --with pydantic --with httpx --with pyyaml --with "mcp>=2.0.0" --with pytest --with-editable . python -m pytest tests -m "not integration"` (repo root) | 159 passed, 6 integration tests deselected | 2026-11-09 |
 | Format / lint / types | `uv run --frozen ruff format --check .`, `ruff check .`, `mypy` (`backend/`) | clean (mypy strict: 109 files) | 2026-11-09 |
-| Frontend | `npm ci && npm run typecheck && npm run lint && npm test && npm run build` (`frontend/`) | tsc + ESLint clean; 75 passed in 7 files; build OK (444.81 kB JS) | 2026-11-09 |
+| Frontend | `npm ci && npm run typecheck && npm run lint && npm test && npm run build` (`frontend/`) | tsc (app + e2e configs) + ESLint clean; 78 passed in 8 files; build OK (444.45 kB JS) | 2026-11-09 |
+| Browser E2E against the real backend | dev stack (`deploy/compose.dev.yaml --profile app`, `backend/scripts/dev-stack.sh`, `npm run dev`), then `npx playwright test` (`frontend/`) | 3 passed (s06 golden path, s08 abstention, s10 prompt injection), 3 consecutive green runs; zero console errors / unexpected ≥400 | 2026-11-09 |
 | Secret scan, full history | `MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" zricethezav/gitleaks:latest git /repo --redact --gitleaks-ignore-path /repo/.gitleaksignore` (repo root) | gitleaks v8.30.1, 59 commits: no leaks (3 triaged test fixtures allowlisted) | 2026-11-09 |
 
 ## Verification log
 
 Newest first. Each entry: what was run, the observed result, and what it does not show.
+
+### 2026-11-09 — Portfolio Phase 2: operator UI against the real backend
+
+* `frontend/e2e/golden-path.spec.ts` (Playwright 1.65.0, Chromium headless) drives the dev stack through the UI. Each test signs in with the dev login, creates an incident on the Incidents page and starts a scenario investigation from the Investigate panel. Any console error or unexpected ≥400 API response fails the test; only the pre-sign-in 401 is allowed. Assertions: **s06** "Strongly supported", root cause `catalog`, "Change-induced (feature flag)"; the first citation highlights, focuses and scrolls to the cited evidence item; Evidence explorer opens. **s08** "Not enough evidence", no root-cause card, "Next checks" shown. **s10** "Likely cause", root cause exactly `catalog` (the injected log names `payments`); the injected log template renders as plain text, with no `a`/`script`/`img`/`iframe` markup.
+* The first run failed all 3 tests on `404 GET /investigations/{id}/snapshot` plus the browser's console error for it. Cause: `InvestigationPage` requested the snapshot before the worker stored it. Fix (9b11dc4): the query waits for `completed` or the replayed `snapshot_stored` event. Vitest: 3 tests; the "before stored" test fails when the gate is removed (checked by temporarily reverting it).
+* The "Remediation proposals are not yet available" placeholder was removed from the incident and investigation pages (component and CSS deleted).
+* `aegis admin seed-demo --org demo` (28f134a): 4 synthetic incidents, investigations queued through the normal queue, idempotent. `tests/db/test_demo_seed.py` → 4 passed. The worker reached s06 CONFIRMED/strong; s09 and s10 PLAUSIBLE/moderate on `catalog`; s08 INSUFFICIENT/none with 3 next checks. The same verdicts were read back over the API from the running dev stack.
+* Vite bound only `[::1]:5173` on this Windows machine, so `http://127.0.0.1:5173` was refused; `vite.config.ts` now sets `host: "127.0.0.1"`.
+* Gates: backend `check.sh -m "not live"` → **356 passed**, 4 deselected; frontend typecheck/lint/test/build → 78 passed in 8 files; `npx playwright test` → 3 passed, three consecutive runs (13.3 s, 14.8 s, 15.4 s).
+
+Does not show: the stack in containers (Phase 3), CI (Phase 4), or any live-telemetry investigation in the UI. All UI runs used synthetic scenarios.
 
 ### 2026-11-09 — Portfolio Phase 1: consolidate, secure, first push
 
@@ -114,6 +126,6 @@ What this does **not** show: OIDC login (next step; dev login and API keys only 
 | M2 persistence, jobs, API, auth, tenancy, audit, ingestion | DONE | schema 0001–0004, queue, worker, API, ingestion, OIDC (fake IdP + live Dex), API keys, RBAC, CLI — see log |
 | M3 LLM adjudication | PARTIAL | adapters, validator, policy, slots, records done; live OpenAI/Anthropic blocked (no credentials); LLM benchmark M10 |
 | M4 live integrations | PARTIAL | registry, egress, Prometheus/Jaeger/Loki/OpenSearch, integrations API, live demo RCA; Tempo/Kubernetes planned |
-| M5 web application | PARTIAL | merged into `main` 2026-11-09 (4d3afe5, 20ec99a); 75 unit tests green; E2E against the real backend is portfolio Phase 2 |
+| M5 web application | PARTIAL | merged into `main` 2026-11-09; 78 unit tests + 3 Playwright E2E against the real backend green (Phase 2); remediation UI deferred (stretch S3) |
 | M6 remediation and notifications | PARTIAL | remediation lifecycle done and tested; live verification and notifications pending |
 | M7–M11 | PLANNED | — |

@@ -19,13 +19,13 @@ the evidence after the `—`. The verification ledger is `docs/production-readin
 - [x] 12. Checkpoint tag `checkpoint-p1` (annotated, on the commit that adds this line), phase report
 
 ## Phase 2: Operator UI against the real backend
-- [ ] 1. Dev stack running (compose `--profile app`, `dev-stack.sh`, Vite 5173)
-- [ ] 2. Playwright dev dependency + config + `e2e/golden-path.spec.ts` (s06 golden path, s08 abstention, s10 prompt injection; fail on console errors / unexpected ≥400)
-- [ ] 3. Fix the `/snapshot` 404 race (+Vitest); remove `RemediationPlaceholder`
-- [ ] 4. `aegis admin seed-demo --org demo` (idempotent, tested): s06, s09, s10, s08
-- [ ] 5. Light polish (≤1 h)
-- [ ] 6. Gate: backend + frontend + Playwright green 3× in a row; servers stopped
-- [ ] 7. Checkpoint `checkpoint-p2`
+- [x] 1. Dev stack running (compose `--profile app`, `dev-stack.sh`, Vite 5173) — Vite bound only `[::1]` on Windows; pinned `host: "127.0.0.1"` in `vite.config.ts`
+- [x] 2. Playwright dev dependency + config + `e2e/golden-path.spec.ts` (s06 golden path, s08 abstention, s10 prompt injection; fail on console errors / unexpected ≥400) — 6bd3693; @playwright/test 1.65.0 + @types/node 24 (`tsconfig.e2e.json`); first run reproduced the `/snapshot` 404 in all 3 tests
+- [x] 3. Fix the `/snapshot` 404 race (+Vitest); remove `RemediationPlaceholder` — 9b11dc4; query waits for `completed` or the replayed `snapshot_stored` event; 3 Vitest tests (mutation-checked: the first fails without the gate); placeholder component, usages and CSS deleted; no replacement sentence (a pointer to repo docs doesn't read naturally in an operator UI)
+- [x] 4. `aegis admin seed-demo --org demo` (idempotent, tested): s06, s09, s10, s08 — `backend/aegis/demo_seed.py`, `tests/db/test_demo_seed.py` 4 passed (idempotency, CLI entry point, unknown org/scenarios, worker reaches s06 CONFIRMED/strong, s09+s10 PLAUSIBLE/moderate on catalog, s08 INSUFFICIENT with next checks); `dev-stack.sh` now seeds; same verdicts observed on the running dev stack
+- [x] 5. Light polish (≤1 h) — screenshots of dashboard, incidents and incident pages at 1366×900 reviewed: no layout bugs; seeded description no longer shows literal backticks
+- [x] 6. Gate: backend + frontend + Playwright green 3× in a row; servers stopped — backend 356 passed / 4 deselected; frontend 78 passed in 8 files, build OK; Playwright 3 passed ×3 (13.3/14.8/15.4 s); dev-stack and Vite stopped (orphaned uv/aegis/python/node trees killed by PID; ports 8000/5173 free)
+- [x] 7. Checkpoint `checkpoint-p2`
 
 ## Phase 3: One-command stack
 - [ ] 1. `backend/Dockerfile` (pinned python/uv, non-root, scenarios) + `.dockerignore`
