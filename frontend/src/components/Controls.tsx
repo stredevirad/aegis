@@ -142,22 +142,3 @@ export function LoadMore({
     </div>
   );
 }
-
-export function RemediationPlaceholder() {
-  return (
-    <section className="panel remediation-placeholder" aria-labelledby="remediation-heading">
-      <div className="panel-head">
-        <h2 id="remediation-heading" className="panel-title">
-          Remediation
-        </h2>
-      </div>
-      <div className="panel-body">
-        <p>
-          Remediation proposals are not yet available. When they are, every action will need an
-          explicit human approval before it runs, and remediation must also be enabled for the
-          organization.
-        </p>
-      </div>
-    </section>
-  );
-}

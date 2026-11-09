@@ -7,7 +7,6 @@ import type { CancelOut, Incident, Investigation, InvestigationEvent } from "../
 import { useCan } from "../../auth/context";
 import { P } from "../../auth/permissions";
 import { InvestigationStatusBadge, SyntheticBadge, VerdictBadge } from "../../components/Badge";
-import { RemediationPlaceholder } from "../../components/Controls";
 import { ErrorNotice, Loading, Notice } from "../../components/Feedback";
 import { PageHeader, Panel } from "../../components/Layout";
 import { DateTime, WindowRange } from "../../components/Time";
@@ -119,10 +118,15 @@ export function InvestigationPage() {
     refetchInterval: (q) => (q.state.data && isActiveInvestigation(q.state.data.status) ? 15_000 : false),
   });
   const inv = invQ.data;
+  // The snapshot exists only once the worker has stored it: asking earlier returns 404, which the
+  // browser reports as a failed request. A completed investigation always has one; otherwise wait
+  // for the "snapshot_stored" event (the event history is replayed when the page loads).
+  const [snapshotStoredFor, setSnapshotStoredFor] = useState<string | null>(null);
+  const snapshotExpected = inv?.status === "completed" || snapshotStoredFor === investigationId;
   const snapQ = useQuery({
     queryKey: qk.snapshot(investigationId),
     queryFn: () => fetchSnapshot(investigationId),
-    enabled: Boolean(inv) && can(P.evidenceRead),
+    enabled: Boolean(inv) && can(P.evidenceRead) && snapshotExpected,
   });
   const incidentQ = useQuery({
     queryKey: qk.incident(inv?.incident_id ?? ""),
@@ -171,7 +175,10 @@ export function InvestigationPage() {
 
   const onEvent = (e: InvestigationEvent) => {
     if (REFRESH_ON.has(e.kind)) void qc.invalidateQueries({ queryKey: qk.investigation(investigationId), exact: true });
-    if (e.kind === "snapshot_stored") void qc.invalidateQueries({ queryKey: qk.snapshot(investigationId) });
+    if (e.kind === "snapshot_stored") {
+      setSnapshotStoredFor(investigationId);
+      void qc.invalidateQueries({ queryKey: qk.snapshot(investigationId) });
+    }
   };
   const onTerminal = () => {
     void qc.invalidateQueries({ queryKey: ["investigation", investigationId] });
@@ -260,7 +267,11 @@ export function InvestigationPage() {
 
       {can(P.evidenceRead) ? (
         <Panel title="Collection summary">
-          {snapQ.isPending ? (
+          {!snapshotExpected ? (
+            <p className="muted">
+              {live ? "No telemetry snapshot yet: collection has not finished." : "No telemetry snapshot was stored."}
+            </p>
+          ) : snapQ.isPending ? (
             <Loading label="Loading collection summary…" />
           ) : snapQ.isError ? (
             isNotFound(snapQ.error) ? (
@@ -290,8 +301,6 @@ export function InvestigationPage() {
           <p>Your role cannot read evidence, so the analysis details are not shown.</p>
         </Notice>
       ) : null}
-
-      <RemediationPlaceholder />
     </div>
   );
 }

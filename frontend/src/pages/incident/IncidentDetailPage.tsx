@@ -26,7 +26,7 @@ import {
   SyntheticBadge,
   VerdictBadge,
 } from "../../components/Badge";
-import { LoadMore, RemediationPlaceholder } from "../../components/Controls";
+import { LoadMore } from "../../components/Controls";
 import { EmptyState, ErrorNotice, Loading } from "../../components/Feedback";
 import { KeyValueList } from "../../components/KeyValues";
 import { PageHeader, Panel } from "../../components/Layout";
@@ -382,8 +382,6 @@ export function IncidentDetailPage() {
       <Panel title="Timeline">
         <Timeline incident={incident} alerts={alerts} investigations={investigations} />
       </Panel>
-
-      <RemediationPlaceholder />
 
       {can(P.auditRead) ? (
         <Panel title="Audit trail">
