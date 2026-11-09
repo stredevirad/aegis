@@ -66,7 +66,7 @@ export default tseslint.config(
     rules: { "no-restricted-syntax": ["error", ...xssRules] },
   },
   {
-    files: ["*.config.{js,ts}"],
+    files: ["*.config.{js,ts}", "e2e/**/*.ts"],
     languageOptions: { globals: globals.node },
   },
 );
