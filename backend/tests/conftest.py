@@ -2,7 +2,8 @@
 roles and migrated as the owner. Tests connect as ``aegis_app`` — never as the superuser —
 so row-level security is actually exercised (Council C).
 
-Requires AEGIS_TEST_SUPERUSER_URL (default: the local dev container on port 55432).
+Requires AEGIS_TEST_SUPERUSER_URL (default: the local dev container on port 55432). Without it the
+database tests are skipped, unless AEGIS_REQUIRE_DB=1 (set in CI), which makes them fail instead.
 """
 
 from __future__ import annotations
@@ -44,10 +45,18 @@ async def _available() -> bool:
         return False
 
 
+def skip_or_fail_without_db(reason: str) -> None:
+    """Database tests are skipped on a machine without PostgreSQL, but fail when
+    ``AEGIS_REQUIRE_DB=1`` (CI): a green run must never hide the skipped database tests."""
+    if os.environ.get("AEGIS_REQUIRE_DB") == "1":
+        pytest.fail(f"{reason} (AEGIS_REQUIRE_DB=1)", pytrace=False)
+    pytest.skip(reason)
+
+
 @pytest.fixture(scope="session")
 def database() -> Iterator[dict[str, str]]:
     if not asyncio.run(_available()):
-        pytest.skip(f"PostgreSQL not reachable at {SUPERUSER_URL}")
+        skip_or_fail_without_db(f"PostgreSQL not reachable at {SUPERUSER_URL}")
     name = f"aegis_test_{secrets.token_hex(4)}"
 
     # roles are cluster-wide: bootstrap (re)asserts their attributes and passwords
