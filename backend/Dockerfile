@@ -6,9 +6,9 @@
 #   docker build --build-context scenarios=eval/scenarios -t aegis-backend:dev backend
 # (deploy/compose.yaml does this with additional_contexts).
 
-FROM ghcr.io/astral-sh/uv:0.12.15 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.7 AS uv
 
-FROM python:3.13.16-slim AS build
+FROM python:3.15.0-slim AS build
 COPY --from=uv /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -21,7 +21,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY aegis ./aegis
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.13.16-slim AS runtime
+FROM python:3.15.0-slim AS runtime
 ENV PATH=/app/.venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
