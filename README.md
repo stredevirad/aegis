@@ -1,234 +1,145 @@
-# Aegis — Evidence-Grounded Incident Investigation & Root Cause Analysis
+# Aegis
 
-[![CI Status](https://img.shields.io/badge/tests-162%20passed-brightgreen)](#testing)
-[![Type Checking](https://img.shields.io/badge/mypy-strict%20clean-blue)](#testing)
-[![Code Style](https://img.shields.io/badge/code%20style-ruff-000000.svg)](#testing)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+When a microservice breaks, Aegis collects its metrics, logs and traces, names the service that caused it with the evidence, and refuses to guess when the evidence is weak.
 
-**Aegis** is an open-source, evidence-grounded incident investigation and root-cause analysis engine for microservices. It connects to live observability backends (**Prometheus**, **OpenSearch**, **Jaeger**), normalizes multi-modal telemetry into a unified `Evidence` model, and executes bounded diagnostic workflows using local small language models (e.g. `qwen3.5:4b`).
+[![CI](https://github.com/stredevirad/aegis/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/stredevirad/aegis/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-blue)](frontend/package.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Unlike naive LLM wrappers that dump uncurated telemetry into prompts or restate incident symptoms, Aegis employs **error-focused telemetry filtering**, **pre-LLM structured summarization**, an **explicit finite state machine**, and an **evaluator with incident-leak detection** to deliver traceable, evidence-backed diagnostic hypotheses.
+![Aegis demo: an incident is investigated and the cited root cause is shown](docs/media/demo.gif)
 
----
+*The golden path, recorded by the committed Playwright test (`frontend/e2e/golden-path.spec.ts`): create an incident, investigate it, read a cited verdict, click a citation to see the evidence.*
 
-## Key Highlights
+## The rule that matters
 
-- **Provider-Agnostic Core**: Clean hexagonal architecture. The domain core (`src/domain/`) has zero dependencies on external telemetry or LLM libraries.
-- **Multi-Modal Telemetry Normalization**: Automatically normalizes metrics (PromQL), logs (OpenSearch JSON DSL), and distributed traces (Jaeger span trees) into standardized `Evidence` objects with provenance tracking.
-- **Pre-LLM Diagnostic Summarization**: Extracts latency percentiles (p50/p95/max), error counts, and service distributions before prompting, preventing catastrophic false negatives caused by naive token truncation.
-- **Error-Focused Query Optimization**: Targeted error filtering reduces investigation duration by **2.3x** (137s vs 312s) and eliminates **59%** of evidence noise.
-- **Leak-Aware RCA Evaluator**: Automated evaluation framework with incident-leak detection and causal language verification, validated against a 12-case benchmark with substantial single-human reference agreement ($\kappa = 0.778$).
-- **Deterministic Offline Replay**: JSON snapshot export/import allows offline prompt engineering and benchmark evaluation without running live Docker clusters.
-- **Strictly Typed & Audited**: 165 automated unit/integration tests (162 passed, 3 skipped for offline live-integration), strict `mypy` type checking (0 issues across 54 source files), and clean `ruff` linting.
+A **deterministic RCA engine decides**. It checks each candidate service against explicit, tri-state checks (pass / fail / not evaluable): baseline validity, failure propagation in traces, isolation, scope of recent changes, agreement across modalities. It names a root cause only when those checks support it.
 
----
+An **optional LLM** may *select* among the engine's candidates, *explain* them with claims that cite existing evidence, and *lower* the confidence. It can **never raise** the classification or the support, cite evidence that doesn't exist, or name a service the engine didn't consider. That's enforced by a validator, not a prompt: [`backend/aegis/llm/validate.py`](backend/aegis/llm/validate.py), decided in [ADR-009](docs/decisions/ADR-009-llm-authority.md). Telemetry reaches the model only inside a randomly delimited, explicitly untrusted data block ([`prompt.py`](backend/aegis/llm/prompt.py)).
 
-## System Architecture
+## Watch it refuse to guess
 
-```mermaid
-flowchart LR
-    subgraph Telemetry_Sources [Telemetry Backends]
-        Prom[Prometheus<br/>Metrics]
-        OS[OpenSearch<br/>Logs]
-        Jaeg[Jaeger<br/>Traces]
-    end
+The one-command demo seeds four synthetic incidents (`aegis admin seed-demo`). The worker investigates them, and the verdicts match the recorded benchmark:
 
-    subgraph Adapters [Provider Adapters]
-        Prom --> PA[PrometheusProvider]
-        OS --> OA[OpenSearchProvider]
-        Jaeg --> JA[JaegerProvider]
-    end
+| Seeded case | Verdict | Support | What the engine says |
+|---|---|---|---|
+| Feature flag breaks `catalog` (s06) | **CONFIRMED** "Strongly supported" | strong | Root cause `catalog`, change-induced (feature flag). Six checks pass, each with cited evidence. |
+| Real `catalog` failure plus a noisy, unrelated batch job (s09) | PLAUSIBLE "Likely cause" | moderate | Root cause `catalog`, not the decoy. |
+| `catalog` failure while frontend logs carry injected instructions claiming `payments` is at fault (s10) | PLAUSIBLE "Likely cause" | moderate | Root cause `catalog`. The injected text is rendered as inert data and can't change the verdict. |
+| Only edge metrics available (s08) | **INSUFFICIENT** "Not enough evidence" | none | **No root cause named.** Next checks: find out what frontend depends on, inspect failing traces, check recent changes. |
 
-    subgraph Core [Aegis Investigation Engine]
-        PA & OA & JA --> EvModel[Unified Evidence Model]
-        EvModel --> Summ[Evidence Summarizer]
-        Summ --> StateMachine[State Machine & Budget Controller<br/>Collect -> Hypothesize -> Verify -> Conclude]
-        StateMachine <--> Tools[Tool Dispatcher]
-        Tools --> PA & OA & JA
-    end
+Reproduce: [`backend/tests/db/test_demo_seed.py`](backend/tests/db/test_demo_seed.py) asserts these verdicts through the real worker; the E2E suite checks the s06, s08 and s10 pages in a browser.
 
-    subgraph LLM [Reasoning Layer]
-        StateMachine <--> Ollama[Ollama Provider<br/>qwen3.5:4b / MockLLM]
-    end
-
-    subgraph Persistence [Audit & Persistence]
-        StateMachine --> SQLite[(SQLite Repository<br/>incidents, evidence, hypotheses)]
-        StateMachine --> Eval[RCA Evaluator<br/>Incident-leak & mechanism check]
-    end
-```
-
----
-
-## Investigation State Machine
-
-Aegis enforces a strict, auditable agent loop with configurable turn, tool call, and duration limits:
-
-```
-INCIDENT_CREATED 
-      ↓
-COLLECTING_EVIDENCE     → Dispatches metrics/logs/traces; summarizes diagnostic signals
-      ↓
-FORMING_HYPOTHESES      → Generates competing hypotheses; requests distinguishing verification tools
-      ↓
-VERIFYING_HYPOTHESES    → Executes targeted verification tool calls against telemetry backends
-      ↓
-CONCLUDING              → Derives diagnosis and classification (CONFIRMED / PLAUSIBLE / NO_ANOMALY / INSUFFICIENT)
-      ↓
-RECOMMENDATION          → Produces remediation action linked to specific evidence IDs
-      ↓
-RECORDED                → Persists full audit trail to SQLite
-```
-
----
-
-## Empirical Findings & Research Results
-
-Aegis was evaluated on the [OpenTelemetry Astronomy Shop Demo](https://github.com/open-telemetry/opentelemetry-demo) under controlled fault injections (`productCatalogFailure`, `recommendationCacheFailure`, neutral descriptions, and healthy baselines):
-
-| Research Dimension | Finding | Empirical Impact |
-|:---|:---|:---|
-| **Query Strategy (RQ2)** | Error-focused querying (`5xx` metrics, error logs, failed traces) | **2.3x faster** (137s vs 312s); **59% noise reduction** (66 vs 163 items) |
-| **Context Summarization (RQ3)** | Pre-LLM structured statistical summary vs naive bounding | **Prevents False Negatives**; raw truncation caused model to miss active outages (`NO_ANOMALY`) |
-| **Epistemic Uncertainty (RQ5)** | Neutral symptom-only descriptions ("Service Anomaly Detected") | Model honestly concludes **`INSUFFICIENT`** rather than hallucinating root causes (**0% prompt leak**) |
-| **RCA Mechanism Limits** | 4B model causal inference capability | Reliably localizes **affected service** (`product-catalog`) and **symptoms**; cannot deduce underlying **feature flag mechanism** |
-| **Evaluator Agreement** | Deterministic evaluator vs Single-Human reference benchmark | **83.3% observed agreement**, **Cohen's $\kappa = 0.778$** (substantial agreement) on 12 cases |
-
-*Detailed tables and methodology are documented in [`docs/final-results.md`](docs/final-results.md).*
-
----
+| Verdict with cited checks | Abstention |
+|---|---|
+| ![s06 verdict: Strongly supported, root cause catalog, checks with evidence](docs/media/rca-verdict.png) | ![s08 abstention: Not enough evidence, no root cause, next checks](docs/media/abstention.png) |
 
 ## Quickstart
 
-### 1. Installation
+**Prerequisites:** Docker Desktop (Compose v2) with about 4 GB of memory available to it. Measured use is ~0.4 GB running, or ~1 GB with the live telemetry demo; the first run builds the images, which takes longer and needs more.
 
-```powershell
-# Clone repository
-git clone https://github.com/your-username/aegis.git
-cd aegis
-
-# Create and activate virtual environment
-python -m venv .venv
-.venv\Scripts\Activate.ps1   # On Linux/macOS: source .venv/bin/activate
-
-# Install with development dependencies
-pip install -e ".[dev]"
+```bash
+git clone https://github.com/stredevirad/aegis.git && cd aegis
+scripts/demo-up.sh            # Windows PowerShell: scripts\demo-up.ps1
 ```
 
-### 2. Run Mock Investigation (Zero External Dependencies)
+1. Open **http://localhost:8080** and sign in with **`admin@example.com`** (development login, no password).
+2. The **Dashboard** and **Incidents** already list the four seeded incidents. Open one, then open its investigation under **Investigations**.
+3. In the verdict, click any evidence ID (e.g. `ev-change-…`) to jump to the cited evidence, or open the **Evidence explorer**.
+4. To investigate something yourself: **Incidents → New incident → Investigate**, pick a scenario such as `s06-feature-flag-failure`, then **Start investigation**.
 
-```powershell
-python -m src.investigation.demo --mock-llm
+**Live telemetry (optional, about 2 GB more):** `scripts/demo-up.sh --live` also starts four small instrumented services, an OpenTelemetry Collector, Prometheus, Jaeger, Loki, Alertmanager and a flag service. Wait about 3 minutes, then run `scripts/demo-fault.sh` to break `catalog` through a feature flag. Within about a minute, Prometheus alerts, Alertmanager posts to Aegis, an incident opens and is investigated automatically from live telemetry. Undo it with `scripts/demo-fault.sh --reset`.
+
+**Stop and delete everything:** `scripts/demo-down.sh` (or `.ps1`).
+
+> **DEMO MODE.** The stack runs the API in its development profile, with the email-only development login and publicly known demo secrets ([`deploy/compose.yaml`](deploy/compose.yaml)). Keep it on localhost. The production profile refuses to start like this: it requires OIDC, HTTPS, secure cookies and real secrets ([`backend/aegis/config.py`](backend/aegis/config.py)).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    AM[Alertmanager /<br/>webhooks] -->|ingest API key| ING[Ingestion<br/>dedupe · grouping]
+    UI[React UI] -->|session + CSRF| API[FastAPI]
+    ING --> Q[(PostgreSQL<br/>durable job queue<br/>SKIP LOCKED + leases)]
+    API --> Q
+    Q --> W[Worker]
+    W -->|SSRF-safe egress| COL[Collectors<br/>Prometheus · Loki/OpenSearch · Jaeger<br/>+ change feed]
+    COL --> SNAP[Telemetry snapshot<br/>redacted]
+    SNAP --> CORE[Pure RCA core<br/>analyze]
+    CORE --> EG[Evidence graph<br/>verdict · checks · next checks]
+    EG -.optional.-> LLM[Bounded LLM<br/>select · explain · lower only]
+    EG --> API
+    API -->|SSE progress| UI
+    EG --> REM[Remediation proposal<br/>two-person approval]
+    REM --> VER[Verification<br/>+ inverse rollback]
+    API --> AUD[(Hash-chained<br/>audit log)]
 ```
 
-**Output snippet**:
-```text
-============================================================
-Aegis Phase 2/3 - End-to-End Investigation
-============================================================
-[1] Initializing SQLite Repository...
-[2] Registering Telemetry Providers... (MOCK)
-[4] Generating Incident Scenario: scenario_payment_api_001
-[7] Starting Investigation Engine (strategy: generic, summarizer: True)...
+Tenant data is isolated with PostgreSQL row-level security. The API, the worker and the collectors share one image ([`backend/Dockerfile`](backend/Dockerfile)), and the UI is a static SPA behind nginx with a strict CSP ([`frontend/nginx.conf`](frontend/nginx.conf)).
 
-============================================================
-Investigation Complete
-============================================================
-Incident ID      : inc_demo_1787588599
-Final Status     : RECORDED
-Duration         : 0:00:00.22s
-Tool Calls       : 4 | LLM Turns: 2
-Classification   : PLAUSIBLE
-Diagnosis        : [PLAUSIBLE] High latency in downstream-db caused payment-api to fail.
-Recommendation   : Scale up downstream-db replicas (Reason: High latency due to load)
-============================================================
+## What's interesting under the hood
+
+- **Multi-tenancy that fails closed.** Tenant tables use `FORCE ROW LEVEL SECURITY`; the app connects as a restricted role and sets the tenant transaction-locally (`set_config(…, true)`). Pooled-connection tests prove a tenant never leaks into the next transaction, not even after an error. See [`0001_core_schema.sql`](backend/aegis/db/migrations/versions/0001_core_schema.sql), [`test_pool_isolation.py`](backend/tests/db/test_pool_isolation.py) and [`test_tenancy_and_schema.py`](backend/tests/db/test_tenancy_and_schema.py).
+- **A job queue in PostgreSQL.** `FOR UPDATE SKIP LOCKED` claims with leases, heartbeats, reaping of dead workers, per-organization caps, idempotency keys and cancellation, with no broker. See [`jobs/queue.py`](backend/aegis/jobs/queue.py) and [`test_queue_and_worker.py`](backend/tests/db/test_queue_and_worker.py).
+- **SSRF-safe egress to customer backends.** It resolves once, checks every address against deny ranges, connects to the pinned address with the original Host/SNI, follows no redirects and caps response sizes. See [`integrations/egress.py`](backend/aegis/integrations/egress.py) and its 62 tests in [`test_egress.py`](backend/tests/integrations/test_egress.py).
+- **Hash-chained, append-only audit log** with a verify endpoint (`GET /api/v1/audit/verify`) and an operator command (`aegis audit verify`). See [`audit/log.py`](backend/aegis/audit/log.py).
+- **A bounded LLM with an untrusted-data channel.** The validator rejects any output that raises confidence, cites unknown evidence or names a non-candidate, and the deterministic verdict stands. See [`llm/validate.py`](backend/aegis/llm/validate.py) and [`test_validate.py`](backend/tests/llm/test_validate.py).
+- **Human-gated remediation.** It's proposal → approval by a second person (unless the organization explicitly allows self-approval) → execution. Execution claims the approved proposal with a compare-and-set, refuses if the target changed since approval, and is followed by verification with an inverse rollback. Backend and API only; there's no UI yet. See [`remediation/service.py`](backend/aegis/remediation/service.py) and [`docs/remediation.md`](docs/remediation.md).
+- **OIDC authorization code + PKCE** with server-side sessions (BFF pattern), tested against a fake IdP and a live Dex. See [`auth/oidc.py`](backend/aegis/auth/oidc.py) and [`test_oidc.py`](backend/tests/api/test_oidc.py).
+- **A pure, clock-free RCA core.** `analyze()` does no I/O and uses no clock or randomness (enforced by an AST test over the package), so the same snapshot always gives the same verdict. See [`core/analyze.py`](backend/aegis/core/analyze.py), [`test_purity.py`](backend/tests/core/test_purity.py) and [`docs/rca.md`](docs/rca.md).
+
+## Results (and what they don't show)
+
+| What | Result | Reproduce |
+|---|---|---|
+| Synthetic regression benchmark (15 scenarios) | 15/15 pass: **12 correct, 3 appropriate abstentions, 0 confident-wrong**; asserted-root-cause precision 1.0 (11 asserted; Wilson 95% CI 0.741–1.0) | `cd backend && uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` |
+| Held-out real captures (8, OpenTelemetry Demo, expected answers hashed before pipeline code) | **0 confident-wrong** in the clean run 1; current code: 0 confident-wrong, 6 appropriate abstentions, 2 partial | `cd backend && uv run --frozen python -m aegis.benchmark.heldout --root .. --out ../eval/results/heldout.json` |
+| Live demo, one run (2026-11-09): fault → alert → incident → automatic live investigation | `catalog` incident: **PLAUSIBLE / moderate, root cause `catalog`, feature-flag mechanism**. The engine reported no valid baseline: the automatic 60-minute baseline window predates a 5-minute-old demo stack. `frontend` incident: INSUFFICIENT. | `scripts/demo-up.sh --live`, wait, `scripts/demo-fault.sh` |
+| CI on every push ([workflow](.github/workflows/ci.yml)) | Backend **360 tests, 0 skipped** (134 against real PostgreSQL; a missing database fails CI); ruff + mypy `--strict`; frontend 78 unit tests + build; **3 Playwright E2E tests against the one-command stack**; research suite 159; gitleaks over full history | see the Actions tab |
+
+**Read these numbers carefully.** The synthetic benchmark was written by the same effort that built the engine and was used during development: **it's a regression gate, not an accuracy estimate.** The held-out set is small, and its captures lack span status, topology, change events and baselines, so it can show "no confident wrong answers on degraded real telemetry" but not localisation accuracy. One live run isn't accuracy either. Details: [`docs/rca.md`](docs/rca.md) §6, and the verification ledger [`docs/production-readiness.md`](docs/production-readiness.md).
+
+## Development
+
+```bash
+docker compose -f deploy/compose.dev.yaml up -d --wait     # test PostgreSQL on 127.0.0.1:55432
+cd backend && bash scripts/check.sh -m "not live"           # ruff, mypy --strict, pytest, benchmark gate
+cd frontend && npm ci && npm run typecheck && npm run lint && npm test && npm run build
+cd frontend && E2E_BASE_URL=http://127.0.0.1:8080 npx playwright test   # against scripts/demo-up.sh
 ```
 
-### 3. Run Live Investigation on OpenTelemetry Demo
+A local API, worker and Vite dev server: `docker compose -f deploy/compose.dev.yaml --profile app up -d --wait`, `bash backend/scripts/dev-stack.sh`, `cd frontend && npm run dev` (http://127.0.0.1:5173).
 
-1. **Start the OpenTelemetry Demo environment**:
-   ```powershell
-   .\scripts\start-otel-demo.ps1
-   ```
-2. **Start Ollama** with `qwen3.5:4b`:
-   ```powershell
-   ollama run qwen3.5:4b
-   ```
-3. **Run Aegis against live telemetry**:
-   ```powershell
-   python -m src.investigation.demo --live-telemetry
-   ```
-4. **Inject a controlled fault and investigate**:
-   ```powershell
-   # Inject product catalog failure
-   python scripts/inject-fault.py --flag productCatalogFailure --value on
+## Project layout
 
-   # Run investigation with error-focused strategy
-   python -m src.investigation.demo --live-telemetry --fault-scenario config/scenarios/product-catalog-failure.yaml --evidence-strategy error_focused
-
-   # Recover healthy baseline
-   python scripts/inject-fault.py --recover-all
-   ```
-
----
-
-## Testing & Quality Assurance
-
-```powershell
-# Run automated test suite (165 collected; 162 passed; 3 skipped offline)
-pytest tests/ -v
-
-# Run human-annotation agreement validation test
-pytest tests/test_human_annotation_validation.py -v -s
-
-# Run strict type checking
-mypy src/ tests/
-
-# Run code linter
-ruff check src/ tests/
+```
+backend/aegis/     API, worker, queue, RCA core, collectors, egress, LLM adjudication, remediation, audit, CLI
+backend/tests/     unit, PostgreSQL, API and (opt-in) live tests
+frontend/          React 19 + TypeScript operator UI, Vitest + Playwright (e2e/)
+deploy/            compose.yaml (one-command stack + demo profile), compose.dev.yaml
+demo/              tiny instrumented demo services and telemetry configs
+eval/              synthetic scenarios, hashed held-out set, results
+docs/              architecture, RCA, security model, ADRs, councils, verification ledger
+src/, tests/       frozen research prototype (see Research history)
 ```
 
----
+## Research history
 
-## Project Structure
-
-```text
-aegis/
-├── config/
-│   ├── evaluator_human_annotations.json # 12-case human reference benchmark
-│   ├── opentelemetry-demo.yaml          # Local telemetry endpoints config
-│   └── scenarios/                       # Fault injection scenario definitions
-├── docs/
-│   ├── architecture.md                  # Mermaid diagrams & system architecture
-│   ├── final-results.md                 # Consolidated research findings & empirical data
-│   ├── human-annotation-guide.md        # Reference annotation rubric & guidelines
-│   ├── reproducibility.md               # End-to-end reproduction guide
-│   ├── portfolio-summary.md             # Executive portfolio summary
-│   └── demo-script.md                   # 3-5 minute live demonstration script
-├── scripts/
-│   ├── inject-fault.py                  # Feature flag fault injection controller
-│   ├── run-fault-investigation.py       # Automated batch experiment & RCA scoring harness
-│   └── start-otel-demo.ps1              # Environment startup and verification scripts
-├── src/
-│   ├── adapters/                        # Prometheus, OpenSearch, Jaeger, Ollama adapters
-│   ├── domain/                          # Pure domain models (Incident, Evidence, Hypothesis)
-│   ├── evaluation/                      # Incident-leak aware RCA evaluator
-│   ├── investigation/                   # InvestigationEngine, ToolDispatcher, Summarizer
-│   └── persistence/                     # SQLite repository and deterministic replay engine
-└── tests/                               # 165 tests across 26 test modules (162 passed, 3 skipped offline)
-```
-
----
+Aegis started as a research prototype: an LLM-driven investigator over the OpenTelemetry Demo, with local 4B models. Its findings shaped the product. Error-focused querying made investigations **2.3× faster** (137 s vs 312 s) with 59% less evidence noise. A 4B model localised the affected service but couldn't infer the feature-flag mechanism. The deterministic evaluator agreed with a single human reference on 12 cases (83.3%, Cohen's κ = 0.778). MCP interoperability experiments rounded it off. Those lessons led to the current design: deterministic checks decide, and the model may only explain or lower confidence. The research code is frozen under `src/` (tags `v1.0-research-complete`, `v1.1-research-freeze`). See [docs/research/README-research.md](docs/research/README-research.md) and [docs/final-results.md](docs/final-results.md).
 
 ## Limitations
 
-1. **Single-Human Reference Annotation**: The 12-case benchmark was annotated by a single human reference annotator, establishing substantial agreement ($\kappa = 0.778$) rather than multi-expert consensus.
-2. **Model Scale Constraints**: Tested with `qwen3.5:4b` on CPU. Small open models localize failing components but cannot deduce deep configuration/flag mechanisms without explicit config telemetry.
-3. **Single Microservice Benchmark**: Tested on the OpenTelemetry Astronomy Shop Demo (Docker Compose).
-4. **Recommendation-Only Remediation**: Aegis produces remediation recommendations; automated execution is intentionally gated behind human approval.
+- **DEMO MODE only so far.** No production deployment exists. Helm/Kubernetes, load and chaos testing, notifications (Slack/PagerDuty) and Tempo/Kubernetes collectors are deferred ([`docs/PORTFOLIO_PROGRESS.md`](docs/PORTFOLIO_PROGRESS.md)).
+- **No live LLM output has ever been accepted.** With a 1B local model (Ollama, CPU), every AI assessment violated the bounds and was rejected; the deterministic verdict stood. Larger and hosted models haven't been evaluated.
+- **Accuracy is unmeasured** beyond the caveated benchmarks above. Thresholds are engineering defaults, not calibrated.
+- **CONFIRMED is reachable mainly for change-induced faults** in synchronous systems. Internal failures without a change are reported as PLAUSIBLE at best ([`docs/rca.md`](docs/rca.md) §7).
+- **Forged telemetry can mislead the deterministic layer.** The guarantee is "never more confident than the data", not resistance to forged data.
+- **Remediation has no UI.** Two known robustness gaps in its stranded-execution reconciler are documented, not yet fixed ([`docs/PORTFOLIO_PROGRESS.md`](docs/PORTFOLIO_PROGRESS.md), "Open follow-ups").
 
----
+## Built with AI assistance
+
+The owner designed and directed Aegis: the scope, the architecture decisions (recorded as [ADRs](docs/decisions/) and LLM-council reviews in [docs/councils/](docs/councils/)) and the acceptance criteria. Claude Code wrote most of the implementation under those decisions. Every claim above is backed by a test, a command or an entry in the verification ledger.
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+[MIT](LICENSE) © 2026 Joshua Herbert Japheth
