@@ -1,5 +1,7 @@
 # Aegis
 
+When a website or app goes down, Aegis works out which part caused it, shows the proof, and says plainly when it can't tell.
+
 When a microservice breaks, Aegis collects its metrics, logs and traces, names the service that caused it with the evidence, and refuses to guess when the evidence is weak.
 
 [![CI](https://github.com/stredevirad/aegis/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/stredevirad/aegis/actions/workflows/ci.yml)
@@ -90,12 +92,15 @@ Tenant data is isolated with PostgreSQL row-level security. The API, the worker 
 
 ## Results (and what they don't show)
 
+- **15 synthetic incidents: 12 correct, 3 correctly abstained, 0 confidently wrong.**
+- **8 real captures: 0 confidently wrong (6 abstained, 2 partially correct).**
+
 | What | Result | Reproduce |
 |---|---|---|
 | Synthetic regression benchmark (15 scenarios) | 15/15 pass: **12 correct, 3 appropriate abstentions, 0 confident-wrong**; asserted-root-cause precision 1.0 (11 asserted; Wilson 95% CI 0.741–1.0) | `cd backend && uv run --frozen python -m aegis.benchmark.run --scenarios ../eval/scenarios --gate` |
 | Held-out real captures (8, OpenTelemetry Demo, expected answers hashed before pipeline code) | **0 confident-wrong** in the clean run 1; current code: 0 confident-wrong, 6 appropriate abstentions, 2 partial | `cd backend && uv run --frozen python -m aegis.benchmark.heldout --root .. --out ../eval/results/heldout.json` |
 | Live demo, one run (2026-11-09): fault → alert → incident → automatic live investigation | `catalog` incident: **PLAUSIBLE / moderate, root cause `catalog`, feature-flag mechanism**. The engine reported no valid baseline: the automatic 60-minute baseline window predates a 5-minute-old demo stack. `frontend` incident: INSUFFICIENT. | `scripts/demo-up.sh --live`, wait, `scripts/demo-fault.sh` |
-| CI on every code push ([workflow](.github/workflows/ci.yml); docs-only pushes skip it) | Backend **360 tests, 0 skipped** (134 against real PostgreSQL; a missing database fails CI); ruff + mypy `--strict`; frontend 78 unit tests + build; **3 Playwright E2E tests against the one-command stack**; research suite 159; gitleaks over full history | see the Actions tab |
+| CI on every code push ([workflow](.github/workflows/ci.yml); docs-only pushes skip it) | Backend **366 tests, 0 skipped** (137 against real PostgreSQL; a missing database fails CI); ruff + mypy `--strict`; frontend 81 unit tests + build; **3 Playwright E2E tests against the one-command stack**; research suite 159; gitleaks over full history | see the Actions tab |
 
 **Read these numbers carefully.** The synthetic benchmark was written by the same effort that built the engine and was used during development: **it's a regression gate, not an accuracy estimate.** The held-out set is small, and its captures lack span status, topology, change events and baselines, so it can show "no confident wrong answers on degraded real telemetry" but not localisation accuracy. One live run isn't accuracy either. Details: [`docs/rca.md`](docs/rca.md) §6, and the verification ledger [`docs/production-readiness.md`](docs/production-readiness.md).
 
@@ -122,6 +127,8 @@ eval/              synthetic scenarios, hashed held-out set, results
 docs/              architecture, RCA, security model, ADRs, councils, verification ledger
 src/, tests/       frozen research prototype (see Research history)
 ```
+
+`src/`, `tests/` and `config/` at the repo root are the frozen research prototype, not the product.
 
 ## Research history
 
